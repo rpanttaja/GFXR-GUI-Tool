@@ -72,46 +72,46 @@ public class UpdateService
         var newExe       = Path.Combine(installDir, "GFXRTool.exe");
         var versionDst   = Path.Combine(installDir, VersionFile);
 
-        var ps = $"""
-            $pid_to_wait = {currentPid}
-            $src         = '{EscapePs(contentRoot)}'
-            $dst         = '{EscapePs(installDir)}'
-            $layersDst   = '{EscapePs(layersDst)}'
-            $layersBak   = '{EscapePs(layersBackup)}'
-            $versionFile = '{EscapePs(versionDst)}'
-            $newVersion  = '{release.TagName}'
-            $newExe      = '{EscapePs(newExe)}'
-            $tempZip     = '{EscapePs(tempZip)}'
-            $tempDir     = '{EscapePs(tempDir)}'
+        var ps = $$"""
+            $pid_to_wait = {{currentPid}}
+            $src         = '{{EscapePs(contentRoot)}}'
+            $dst         = '{{EscapePs(installDir)}}'
+            $layersDst   = '{{EscapePs(layersDst)}}'
+            $layersBak   = '{{EscapePs(layersBackup)}}'
+            $versionFile = '{{EscapePs(versionDst)}}'
+            $newVersion  = '{{release.TagName}}'
+            $newExe      = '{{EscapePs(newExe)}}'
+            $tempZip     = '{{EscapePs(tempZip)}}'
+            $tempDir     = '{{EscapePs(tempDir)}}'
 
             # Wait for the app to fully release its file locks
-            try {{
+            try {
                 $proc = Get-Process -Id $pid_to_wait -ErrorAction SilentlyContinue
-                if ($proc) {{ $proc.WaitForExit(30000) | Out-Null }}
-            }} catch {{ }}
+                if ($proc) { $proc.WaitForExit(30000) | Out-Null }
+            } catch { }
             Start-Sleep -Milliseconds 500
 
             # Back up Layers so we don't overwrite the user's real capture DLLs
-            if (Test-Path $layersDst) {{
-                if (Test-Path $layersBak) {{ Remove-Item $layersBak -Recurse -Force }}
+            if (Test-Path $layersDst) {
+                if (Test-Path $layersBak) { Remove-Item $layersBak -Recurse -Force }
                 Copy-Item $layersDst $layersBak -Recurse -Force
-            }}
+            }
 
             # Copy all new files, skip Layers from the zip
-            Get-ChildItem $src | Where-Object {{ $_.Name -ne 'Layers' }} | ForEach-Object {{
+            Get-ChildItem $src | Where-Object { $_.Name -ne 'Layers' } | ForEach-Object {
                 $target = Join-Path $dst $_.Name
-                if ($_.PSIsContainer) {{
+                if ($_.PSIsContainer) {
                     Copy-Item $_.FullName $target -Recurse -Force
-                }} else {{
+                } else {
                     Copy-Item $_.FullName $target -Force
-                }}
-            }}
+                }
+            }
 
             # Restore user's Layers
-            if (Test-Path $layersBak) {{
+            if (Test-Path $layersBak) {
                 Copy-Item $layersBak $layersDst -Recurse -Force
                 Remove-Item $layersBak -Recurse -Force -ErrorAction SilentlyContinue
-            }}
+            }
 
             # Stamp new version
             $newVersion | Set-Content $versionFile
