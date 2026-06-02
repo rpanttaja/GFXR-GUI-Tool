@@ -387,7 +387,6 @@ public partial class MainViewModel : ObservableObject
                     MonitorGame(proc, () =>
                     {
                         CleanupDlls(copied);
-                        GameLauncherService.DeleteSettingsFile(deployDir);
                         _activeCopied = null;
                         StagedInDir   = null;
                         RemoveStagedDllsCommand.NotifyCanExecuteChanged();
@@ -413,7 +412,6 @@ public partial class MainViewModel : ObservableObject
                         MonitorGame(fbProc, () =>
                         {
                             CleanupDlls(fbCopied);
-                            GameLauncherService.DeleteSettingsFile(deployDir2);
                             _activeCopied = null;
                             StagedInDir   = null;
                             RemoveStagedDllsCommand.NotifyCanExecuteChanged();
@@ -436,7 +434,6 @@ public partial class MainViewModel : ObservableObject
                         MonitorGame(injProc, () =>
                         {
                             CleanupDlls(injCopied);
-                            GameLauncherService.DeleteSettingsFile(injDir);
                             _activeCopied = null;
                             StagedInDir   = null;
                             RemoveStagedDllsCommand.NotifyCanExecuteChanged();
@@ -556,9 +553,6 @@ public partial class MainViewModel : ObservableObject
             GameLauncherService.CleanupStagedDlls(_activeCopied);
             _log.Log($"  Removed {_activeCopied.Count} staged DLL(s) and restored backups.");
         }
-
-        if (dir != null)
-            GameLauncherService.DeleteSettingsFile(dir);
 
         // Also sweep for any orphaned .gfxr_bak files left by a previous crashed session.
         if (dir != null && Directory.Exists(dir))

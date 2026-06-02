@@ -16,9 +16,11 @@ public class GameLauncherService
         if (dlls.Count == 0) throw new InvalidOperationException("No DLLs to sideload.");
 
         var gameDir = Path.GetDirectoryName(game.ExecutablePath)!;
-        var copied  = await StageDllsAsync(gameDir, dlls);
+        var copied  = new List<(string Dest, string? Backup)>(await StageDllsAsync(gameDir, dlls));
 
         WriteSettingsFile(gameDir, captureOutputDir, deferCapture);
+        // Include settings file in copied list so it's auto-cleaned on exit.
+        copied.Add((Path.Combine(gameDir, SettingsFileName), null));
 
         var psi = new ProcessStartInfo
         {
@@ -44,15 +46,15 @@ public class GameLauncherService
             throw new InvalidOperationException(
                 $"'{game.Name}' has no launcher ID — use Standard deployment instead.");
 
-        var gameDir         = Path.GetDirectoryName(game.ExecutablePath)!;
+        var gameDir         = Path.GetFullPath(Path.GetDirectoryName(game.ExecutablePath)!);
         var launcherExeName = Path.GetFileNameWithoutExtension(game.ExecutablePath);
 
+        // Stage to the launcher dir first — covers games where the exe is co-located.
+        // Settings file is added to the copied list so it's auto-cleaned on exit.
         progress?.Report($"Staging {dlls.Count} layer(s) into {gameDir}...");
-        var copied = await StageDllsAsync(gameDir, dlls);
-
-        // Write settings file so GFXR picks up output dir / trigger key without
-        // needing environment variables (the game inherits Steam's env, not ours).
+        var copied = new List<(string Dest, string? Backup)>(await StageDllsAsync(gameDir, dlls));
         WriteSettingsFile(gameDir, captureOutputDir, deferCapture);
+        copied.Add((Path.Combine(gameDir, SettingsFileName), null));
 
         try
         {
@@ -64,13 +66,31 @@ public class GameLauncherService
             var gameProcess = await WaitForGameProcessInDirAsync(
                 gameDir, launcherExeName, timeoutMs: 120_000, ct, progress);
 
+            // Check if the actual game exe lives in a subdirectory (e.g. Squad.exe in
+            // Squad\Binaries\Win64\). Windows DLL search order starts in the exe's own
+            // directory, so we need the GFXR DLLs and settings file there too.
+            try
+            {
+                var actualExeDir = Path.GetFullPath(
+                    Path.GetDirectoryName(gameProcess.MainModule!.FileName)!);
+
+                if (!actualExeDir.Equals(gameDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    progress?.Report($"Game exe is in subdirectory — re-staging to: {actualExeDir}");
+                    var extraCopied = await StageDllsAsync(actualExeDir, dlls);
+                    copied.AddRange(extraCopied);
+                    WriteSettingsFile(actualExeDir, captureOutputDir, deferCapture);
+                    copied.Add((Path.Combine(actualExeDir, SettingsFileName), null));
+                }
+            }
+            catch { /* protected process — gameDir staging is still in place */ }
+
             progress?.Report($"Attached to {gameProcess.ProcessName} (PID {gameProcess.Id}).");
             return (gameProcess, copied);
         }
         catch
         {
             CleanupStagedDlls(copied);
-            DeleteSettingsFile(gameDir);
             throw;
         }
     }
@@ -134,9 +154,11 @@ public class GameLauncherService
 
             foreach (var proc in Process.GetProcesses())
             {
-                if (proc.HasExited) continue;
                 try
                 {
+                    // HasExited can throw Access Denied on protected processes — must be inside try
+                    if (proc.HasExited) continue;
+
                     var exePath = proc.MainModule?.FileName;
                     if (exePath == null) continue;
 
@@ -147,7 +169,7 @@ public class GameLauncherService
                         !exeName.Equals(launcherExeName, StringComparison.OrdinalIgnoreCase))
                         return proc;
                 }
-                catch { }
+                catch { /* access denied on protected/system processes — skip */ }
             }
 
             await Task.Delay(pollMs, ct);
