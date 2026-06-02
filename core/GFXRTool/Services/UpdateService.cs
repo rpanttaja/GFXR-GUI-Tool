@@ -9,6 +9,8 @@ public class UpdateService
 {
     private const string Repo        = "rpanttaja/GFXR-GUI-Tool";
     private const string ApiUrl      = $"https://api.github.com/repos/{Repo}/releases/latest";
+    // Source zip URL — always points to the latest main branch source
+    private const string SourceZipUrl = $"https://github.com/{Repo}/archive/refs/heads/main.zip";
     private const string VersionFile = "version.txt";
 
     private static readonly HttpClient Http = new();
@@ -20,8 +22,13 @@ public class UpdateService
 
     public string InstalledVersion()
     {
-        var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, VersionFile);
-        return File.Exists(path) ? File.ReadAllText(path).Trim() : "(unknown)";
+        // Check version.txt next to the exe first, then walk up to the repo root.
+        foreach (var dir in AncestorDirs(AppDomain.CurrentDomain.BaseDirectory).Take(5))
+        {
+            var f = Path.Combine(dir, VersionFile);
+            if (File.Exists(f)) return File.ReadAllText(f).Trim();
+        }
+        return "(unknown)";
     }
 
     public async Task<ReleaseInfo?> GetLatestReleaseAsync()
@@ -29,105 +36,110 @@ public class UpdateService
         return await Http.GetFromJsonAsync<ReleaseInfo>(ApiUrl);
     }
 
-    // Downloads the zip, extracts it, then hands off to a small PowerShell helper
-    // that waits for this process to exit before copying files.
-    // We can't overwrite GFXRTool.exe (or its DLLs) while they are loaded — the
-    // helper runs as a separate process so Windows releases the file locks first.
+    // Downloads the latest source zip from GitHub, extracts it over the install root,
+    // preserves the Layers folder, writes version.txt, then relaunches via run.bat.
+    // All file operations happen in a PowerShell helper that runs after this process exits
+    // so no file locks block the copy.
     public async Task UpdateAndRestartAsync(ReleaseInfo release, IProgress<string> progress)
     {
-        var installDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
-        var zipAsset   = release.Assets?.FirstOrDefault(a => a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                         ?? throw new InvalidOperationException("No zip asset found in release.");
+        // Determine the repo root — walk up from BaseDirectory until we find run.bat
+        var repoRoot = FindRepoRoot(AppDomain.CurrentDomain.BaseDirectory)
+                       ?? AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
 
-        // ── Download ──────────────────────────────────────────────────────────
-        var tempZip = Path.Combine(Path.GetTempPath(), $"GFXRTool-{release.TagName}.zip");
-        progress.Report($"Downloading {release.TagName}...");
+        progress.Report($"Downloading latest source ({release.TagName})...");
 
-        using (var response = await Http.GetAsync(zipAsset.DownloadUrl, HttpCompletionOption.ResponseHeadersRead))
+        var tempZip = Path.Combine(Path.GetTempPath(), $"GFXR-GUI-Tool-{release.TagName}.zip");
+
+        using (var response = await Http.GetAsync(SourceZipUrl, HttpCompletionOption.ResponseHeadersRead))
         {
             response.EnsureSuccessStatusCode();
             await using var fs = File.Create(tempZip);
             await response.Content.CopyToAsync(fs);
         }
 
-        progress.Report("Download complete. Extracting...");
+        progress.Report("Download complete. Preparing helper...");
 
-        // ── Extract ───────────────────────────────────────────────────────────
-        var tempDir = Path.Combine(Path.GetTempPath(), $"GFXRTool-extract-{release.TagName}");
-        if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
-        ZipFile.ExtractToDirectory(tempZip, tempDir);
-
-        // Unwrap single top-level folder if present.
-        var items       = Directory.GetFileSystemEntries(tempDir);
-        var contentRoot = items.Length == 1 && Directory.Exists(items[0]) ? items[0] : tempDir;
-
-        // ── Write the helper script ───────────────────────────────────────────
-        // PowerShell script runs outside the app, waits for our PID to exit,
-        // copies new files (skipping Layers), restores Layers, writes version.txt,
-        // then relaunches GFXRTool.exe.
-        var currentPid  = Environment.ProcessId;
-        var layersDst   = Path.Combine(installDir, "Layers");
-        var layersBackup = Path.Combine(Path.GetTempPath(), $"GFXRTool-Layers-{release.TagName}");
+        var tempDir      = Path.Combine(Path.GetTempPath(), $"GFXR-source-{release.TagName}");
         var helperScript = Path.Combine(Path.GetTempPath(), "GFXRTool-update-helper.ps1");
-        var newExe       = Path.Combine(installDir, "GFXRTool.exe");
-        var versionDst   = Path.Combine(installDir, VersionFile);
+        var layersSrc    = Path.Combine(repoRoot, "core", "Layers");
+        var layersBak    = Path.Combine(Path.GetTempPath(), $"GFXRTool-Layers-{release.TagName}");
+        var runBat       = Path.Combine(repoRoot, "Launch GFXR Tool.bat");
+        var versionDst   = Path.Combine(repoRoot, VersionFile);
+        var currentPid   = Environment.ProcessId;
 
+        // The GitHub archive zip contains a single top-level folder named
+        // "GFXR-GUI-Tool-main" — we strip it and copy contents into repoRoot.
         var ps = $$"""
             $pid_to_wait = {{currentPid}}
-            $src         = '{{EscapePs(contentRoot)}}'
-            $dst         = '{{EscapePs(installDir)}}'
-            $layersDst   = '{{EscapePs(layersDst)}}'
-            $layersBak   = '{{EscapePs(layersBackup)}}'
-            $versionFile = '{{EscapePs(versionDst)}}'
-            $newVersion  = '{{release.TagName}}'
-            $newExe      = '{{EscapePs(newExe)}}'
             $tempZip     = '{{EscapePs(tempZip)}}'
             $tempDir     = '{{EscapePs(tempDir)}}'
+            $repoRoot    = '{{EscapePs(repoRoot)}}'
+            $layersSrc   = '{{EscapePs(layersSrc)}}'
+            $layersBak   = '{{EscapePs(layersBak)}}'
+            $runBat      = '{{EscapePs(runBat)}}'
+            $versionFile = '{{EscapePs(versionDst)}}'
+            $newVersion  = '{{release.TagName}}'
 
-            # Wait for the app to fully release its file locks
+            # Wait for GFXRTool to fully exit
             try {
                 $proc = Get-Process -Id $pid_to_wait -ErrorAction SilentlyContinue
                 if ($proc) { $proc.WaitForExit(30000) | Out-Null }
             } catch { }
-            Start-Sleep -Milliseconds 500
+            Start-Sleep -Milliseconds 800
 
-            # Back up Layers so we don't overwrite the user's real capture DLLs
-            if (Test-Path $layersDst) {
+            # Expand zip
+            if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+            Expand-Archive -Path $tempZip -DestinationPath $tempDir
+
+            # GitHub archive has one top-level folder — unwrap it
+            $inner = Get-ChildItem $tempDir | Where-Object { $_.PSIsContainer } | Select-Object -First 1
+            $src   = if ($inner) { $inner.FullName } else { $tempDir }
+
+            # Back up Layers
+            if (Test-Path $layersSrc) {
                 if (Test-Path $layersBak) { Remove-Item $layersBak -Recurse -Force }
-                Copy-Item $layersDst $layersBak -Recurse -Force
+                Copy-Item $layersSrc $layersBak -Recurse -Force
             }
 
-            # Copy all new files, skip Layers from the zip
-            Get-ChildItem $src | Where-Object { $_.Name -ne 'Layers' } | ForEach-Object {
-                $target = Join-Path $dst $_.Name
+            # Copy new source over repo root, skip Layers subfolder from zip
+            Get-ChildItem $src | ForEach-Object {
+                $target = Join-Path $repoRoot $_.Name
                 if ($_.PSIsContainer) {
-                    Copy-Item $_.FullName $target -Recurse -Force
+                    # Don't overwrite Layers with what's in the zip
+                    if ($_.Name -eq 'core') {
+                        Get-ChildItem $_.FullName | Where-Object { $_.Name -ne 'Layers' } | ForEach-Object {
+                            $t = Join-Path $target $_.Name
+                            if ($_.PSIsContainer) { Copy-Item $_.FullName $t -Recurse -Force }
+                            else { Copy-Item $_.FullName $t -Force }
+                        }
+                    } else {
+                        Copy-Item $_.FullName $target -Recurse -Force
+                    }
                 } else {
                     Copy-Item $_.FullName $target -Force
                 }
             }
 
-            # Restore user's Layers
+            # Restore Layers
             if (Test-Path $layersBak) {
-                Copy-Item $layersBak $layersDst -Recurse -Force
+                Copy-Item $layersBak $layersSrc -Recurse -Force
                 Remove-Item $layersBak -Recurse -Force -ErrorAction SilentlyContinue
             }
 
-            # Stamp new version
+            # Stamp version
             $newVersion | Set-Content $versionFile
 
-            # Cleanup temp files
+            # Cleanup
             Remove-Item $tempZip -Force -ErrorAction SilentlyContinue
             Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 
-            # Relaunch
-            Start-Process $newExe
+            # Relaunch via run.bat (rebuilds and starts the tool)
+            Start-Process $runBat
             """;
 
         File.WriteAllText(helperScript, ps);
 
-        // ── Launch helper and exit ────────────────────────────────────────────
-        progress.Report($"Handing off to update helper — restarting as {release.TagName}...");
+        progress.Report($"Handing off to update helper — rebuilding {release.TagName}...");
 
         Process.Start(new ProcessStartInfo
         {
@@ -137,21 +149,33 @@ public class UpdateService
             WindowStyle     = ProcessWindowStyle.Hidden,
         });
 
-        // Shut down — the helper is now watching our PID and will take over once we're gone.
         System.Windows.Application.Current.Dispatcher.Invoke(
             () => System.Windows.Application.Current.Shutdown());
     }
 
-    private static string EscapePs(string path) => path.Replace("'", "''");
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static void CopyDirectory(string src, string dst)
+    private static string? FindRepoRoot(string startDir)
     {
-        Directory.CreateDirectory(dst);
-        foreach (var file in Directory.GetFiles(src))
-            File.Copy(file, Path.Combine(dst, Path.GetFileName(file)), overwrite: true);
-        foreach (var dir in Directory.GetDirectories(src))
-            CopyDirectory(dir, Path.Combine(dst, Path.GetFileName(dir)));
+        foreach (var dir in AncestorDirs(startDir))
+            if (File.Exists(Path.Combine(dir, "Launch GFXR Tool.bat")))
+                return dir;
+        return null;
     }
+
+    private static IEnumerable<string> AncestorDirs(string start)
+    {
+        var dir = Path.GetFullPath(start).TrimEnd('\\', '/');
+        while (!string.IsNullOrEmpty(dir))
+        {
+            yield return dir;
+            var parent = Path.GetDirectoryName(dir);
+            if (parent == dir) yield break;
+            dir = parent ?? string.Empty;
+        }
+    }
+
+    private static string EscapePs(string path) => path.Replace("'", "''");
 
     // ── DTOs ──────────────────────────────────────────────────────────────────
 
