@@ -642,7 +642,7 @@ public partial class MainViewModel : ObservableObject
 
             if (latest == null)
             {
-                SetStatus("Could not determine latest version.");
+                SetStatus("No releases published yet — check https://github.com/rpanttaja/GFXR-GUI-Tool/releases");
                 return;
             }
 

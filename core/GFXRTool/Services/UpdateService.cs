@@ -33,7 +33,11 @@ public class UpdateService
 
     public async Task<ReleaseInfo?> GetLatestReleaseAsync()
     {
-        return await Http.GetFromJsonAsync<ReleaseInfo>(ApiUrl);
+        var response = await Http.GetAsync(ApiUrl);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null; // no releases published yet
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ReleaseInfo>();
     }
 
     // Downloads the latest source zip from GitHub, extracts it over the install root,
