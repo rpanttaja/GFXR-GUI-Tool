@@ -112,28 +112,100 @@ public class GameDiscoveryService
 
     private string? FindGameExecutable(string installPath, string gameName)
     {
-        // Check root first, then recurse up to 2 levels deep
         var candidates = Directory
             .EnumerateFiles(installPath, "*.exe", SearchOption.AllDirectories)
-            .Where(e => !IsUtilityExe(e))
-            .Take(30)
+            .Where(e => !IsUtilityExe(e) && !IsInExcludedDir(e))
             .ToList();
 
         if (!candidates.Any()) return null;
 
-        // Prefer exe whose filename resembles the game name
+        // Score each candidate — higher wins.
+        return candidates
+            .Select(e => (Path = e, Score: ScoreExe(e, gameName)))
+            .OrderByDescending(x => x.Score)
+            // Tiebreak: largest file (more code = more likely the real game)
+            .ThenByDescending(x => new FileInfo(x.Path).Length)
+            .First().Path;
+    }
+
+    private static int ScoreExe(string path, string gameName)
+    {
+        var name    = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+        var dirLower = path.ToLowerInvariant();
+
+        // ── Unreal Engine: *Shipping* in Binaries/Win64 or Binaries/Win32 ────
+        // These are always the real game process — prioritise absolutely.
+        bool inBinaries = dirLower.Contains(@"\binaries\win64\") ||
+                          dirLower.Contains(@"\binaries\win32\");
+        bool isShipping = name.Contains("shipping");
+
+        if (inBinaries && isShipping)  return 100;
+        if (inBinaries && !isShipping) return  70;  // other Unreal exes (editor, etc.)
+        if (isShipping)                return  80;  // shipping outside canonical path
+
+        // ── Name matches game slug ────────────────────────────────────────────
         var slug = Slugify(gameName);
-        return candidates.FirstOrDefault(e => Slugify(Path.GetFileNameWithoutExtension(e)).Contains(slug))
-               ?? candidates.OrderByDescending(e => new FileInfo(e).Length).First();
+        if (slug.Length > 2 && Slugify(name).Contains(slug)) return 60;
+
+        // ── Exe in a plausible game bin folder ────────────────────────────────
+        bool inBinDir = dirLower.Contains(@"\bin\")  ||
+                        dirLower.Contains(@"\bin64\") ||
+                        dirLower.Contains(@"\x64\")   ||
+                        dirLower.Contains(@"\win64\");
+        if (inBinDir) return 40;
+
+        // ── Root of install directory ─────────────────────────────────────────
+        var installRoot = Path.GetDirectoryName(path)?.ToLowerInvariant() ?? "";
+        // If the exe's parent IS the install root it gets a small bump
+        return 10;
+    }
+
+    // Directories that only contain redistributables, tools, or setup programs —
+    // never the real game executable.
+    private static bool IsInExcludedDir(string path)
+    {
+        var lower = path.ToLowerInvariant();
+        return lower.Contains(@"\redistributables\")  ||
+               lower.Contains(@"\redistributable\")   ||
+               lower.Contains(@"\_commonredist\")      ||
+               lower.Contains(@"\redist\")             ||
+               lower.Contains(@"\setup\")              ||
+               lower.Contains(@"\directx\")            ||
+               lower.Contains(@"\dotnet\")             ||
+               lower.Contains(@"\physx\")              ||
+               lower.Contains(@"\support\")            ||
+               lower.Contains(@"\installer\")          ||
+               lower.Contains(@"\prerequisites\");
     }
 
     private static bool IsUtilityExe(string path)
     {
         var name = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
-        return name is "unins000" or "uninstall" or "setup" or "dxsetup"
-                    or "vc_redist.x64" or "vc_redist.x86" or "dotnetfx"
-                    or "crashhandler" or "crashreporter" or "launcher"
-                    or "redist" or "vcredist";
+        return name is
+            // Uninstallers / setup
+            "unins000" or "uninstall" or "uninst" or "setup" or "install" or
+            "dxsetup" or "dxwebsetup" or
+            // Redistributables
+            "vc_redist.x64" or "vc_redist.x86" or "vcredist_x64" or "vcredist_x86" or
+            "vcredist" or "redist" or "dotnetfx" or "dotnetfx35client" or
+            // Crash / error reporting
+            "crashhandler" or "crashreporter" or "crashpad_handler" or
+            "sentry" or "bugsplat" or
+            // Launchers / bootstrappers that are NOT the game itself
+            "launcher" or "bootstrapper" or
+            // Valve / Steam tools
+            "vconsole" or "vconsole2" or "steamwebhelper" or "gameoverlayui" or
+            // Rockstar
+            "socialclubsetup" or "social-club-setup" or "rockstarinstaller" or
+            "rockstarlauncher" or "rgsc" or
+            // Epic
+            "epicgameslauncher" or "epicinstaller" or "epicgamesinstaller" or
+            // Anti-cheat (standalone service exes, not the game)
+            "easyanticheat" or "easyanticheat_setup" or "bservice" or
+            "battleye" or "battleeye" or
+            // Misc tools
+            "x64launcher" or "x86launcher" or "python" or "pythonw" or
+            "node" or "nvdisplay.container";
     }
 
     private static string Slugify(string s) =>
