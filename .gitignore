@@ -1,0 +1,20 @@
+# Build output
+core/GFXRTool/bin/
+core/GFXRTool/obj/
+core/GFXRWatcher/bin/
+core/GFXRWatcher/obj/
+
+# VS files
+.vs/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Runtime logs and scratch debug files
+core/gfxrtool.log
+core/debug.txt
+core/debug/
+debug/

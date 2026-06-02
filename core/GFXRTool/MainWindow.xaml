@@ -1,0 +1,389 @@
+<Window x:Class="GFXRTool.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:GFXRTool.ViewModels"
+        Title="GFXR Capture Tool"
+        Width="960" Height="660"
+        MinWidth="720" MinHeight="520"
+        Background="{StaticResource BgBrush}"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.DataContext>
+        <vm:MainViewModel/>
+    </Window.DataContext>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48"/>   <!-- Header -->
+            <RowDefinition Height="*"/>    <!-- Main content -->
+            <RowDefinition Height="Auto"/> <!-- Launch bar -->
+            <RowDefinition Height="28"/>   <!-- Status bar -->
+        </Grid.RowDefinitions>
+
+        <!-- ── Header ─────────────────────────────────────────────────── -->
+        <Border Grid.Row="0" Background="{StaticResource AccentBrush}">
+            <Grid Margin="16,0">
+                <TextBlock Text="GFXR Capture Tool"
+                           FontSize="15" FontWeight="SemiBold"
+                           Foreground="White" VerticalAlignment="Center"/>
+                <TextBlock Text="Graphics Frame Recorder  |  Standard · Injection · System32"
+                           FontSize="11" Foreground="#B3DEFF"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- ── Main content ───────────────────────────────────────────── -->
+        <TabControl Grid.Row="1" SelectedIndex="{Binding ActiveTabIndex}">
+
+            <!-- Tab 0: Capture setup -->
+            <TabItem Header="Capture">
+                <Grid Margin="12,10,12,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="340"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Games panel -->
+                    <GroupBox Grid.Column="0" Header="Game Library">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="6"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="6"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <ListView Grid.Row="0"
+                                      ItemsSource="{Binding Games}"
+                                      SelectedItem="{Binding SelectedGame}">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Game Name" Width="260">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Name}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding ExecutablePath}"/>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Source" DisplayMemberBinding="{Binding Source}" Width="70"/>
+                                        <GridViewColumn Header="Executable" Width="240">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding ExecutablePath}"
+                                                               Foreground="{StaticResource DimTextBrush}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding ExecutablePath}"/>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+
+                            <!-- Scan progress -->
+                            <ProgressBar Grid.Row="2"
+                                         IsIndeterminate="True" Height="3"
+                                         Foreground="{StaticResource AccentBrush}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Visibility="{Binding IsScanning,
+                                             Converter={StaticResource BoolToVis}}"/>
+
+                            <!-- Buttons -->
+                            <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="Scan Games"
+                                        Style="{StaticResource PrimaryBtn}"
+                                        Command="{Binding ScanGamesCommand}"
+                                        Margin="0,0,6,0"/>
+                                <Button Content="Add Manually..."
+                                        Style="{StaticResource SecondaryBtn}"
+                                        Command="{Binding AddGameManuallyCommand}"
+                                        Margin="0,0,6,0"/>
+                                <Button Content="Remove"
+                                        Style="{StaticResource SecondaryBtn}"
+                                        Command="{Binding RemoveGameCommand}"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+
+                    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                                  Background="{StaticResource BorderBrush}"/>
+
+                    <!-- Right panel: deployment mode + capture settings -->
+                    <GroupBox Grid.Column="2" Header="Deployment Mode">
+                        <StackPanel>
+
+                            <!-- Standard Deployment -->
+                            <Border Background="#1A2A1A" BorderBrush="#2D5A2D"
+                                    BorderThickness="1" CornerRadius="4"
+                                    Padding="10,8" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <RadioButton Content="Standard Deployment"
+                                                 IsChecked="{Binding UseStandard}"
+                                                 GroupName="LaunchMethod"
+                                                 FontWeight="SemiBold" FontSize="12"/>
+                                    <TextBlock Text="Copies GFXR layers into the game folder before launch and removes them automatically when the game exits. No system files are modified."
+                                               Foreground="{StaticResource DimTextBrush}"
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Margin="18,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Injection -->
+                            <Border BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#1E1E1E"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UseInjection}" Value="True">
+                                                <Setter Property="Background" Value="#0F1A28"/>
+                                                <Setter Property="BorderBrush" Value="#2E7D32"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <RadioButton Content="Injection"
+                                                 IsChecked="{Binding UseInjection}"
+                                                 GroupName="LaunchMethod"
+                                                 FontWeight="SemiBold" FontSize="12"/>
+                                    <TextBlock Text="Stages GFXR layers in the game folder, then launches the game through Steam or Epic so EAC / BattlEye sees an officially-trusted process. Layers are removed automatically on exit. Requires a Steam or Epic AppId."
+                                               Foreground="{StaticResource DimTextBrush}"
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Margin="18,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- System32 Deployment -->
+                            <Border BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,0">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#1E1E1E"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UseSystem32}" Value="True">
+                                                <Setter Property="Background" Value="#2A1A0A"/>
+                                                <Setter Property="BorderBrush" Value="#8B4513"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <RadioButton Content="System32 Deployment"
+                                                 IsChecked="{Binding UseSystem32}"
+                                                 GroupName="LaunchMethod"
+                                                 FontWeight="SemiBold" FontSize="12"
+                                                 Foreground="#F4A460"/>
+                                    <TextBlock Text="Replaces d3d11.dll, d3d12.dll and dxgi.dll in System32. Use when Standard Deployment fails."
+                                               Foreground="{StaticResource DimTextBrush}"
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Margin="18,4,0,0"/>
+
+                                    <!-- System32 details — only when selected -->
+                                    <StackPanel Visibility="{Binding UseSystem32, Converter={StaticResource BoolToVis}}"
+                                                Margin="0,10,0,0">
+                                        <TextBlock Text="WARNING: If the device shuts off during capture it may brick and require a reflash. Originals are backed up as *_ms.dll and auto-restored when the game exits."
+                                                   Foreground="#CE9178" FontSize="11"
+                                                   TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                                        <Border Background="#1E1E1E" BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1" CornerRadius="3"
+                                                Padding="8,4" Margin="0,0,0,8"
+                                                HorizontalAlignment="Left">
+                                            <TextBlock FontSize="11" FontWeight="SemiBold"
+                                                       Text="{Binding System32StatusText}"
+                                                       Foreground="{Binding System32StatusColor}"/>
+                                        </Border>
+
+                                        <Button Content="Check Status"
+                                                Style="{StaticResource SecondaryBtn}"
+                                                Command="{Binding RefreshSystem32StatusCommand}"
+                                                HorizontalAlignment="Stretch" Margin="0,0,0,4"/>
+                                        <Button Content="Install DLLs"
+                                                Style="{StaticResource SecondaryBtn}"
+                                                Command="{Binding InstallToSystem32Command}"
+                                                IsEnabled="{Binding IsNotBusy}"
+                                                HorizontalAlignment="Stretch" Margin="0,0,0,4"/>
+                                        <Button Content="Restore Originals"
+                                                Style="{StaticResource SecondaryBtn}"
+                                                Command="{Binding RestoreSystem32Command}"
+                                                IsEnabled="{Binding IsNotBusy}"
+                                                HorizontalAlignment="Stretch" Margin="0,0,0,4"/>
+                                        <Button Content="Force Restore (SFC/DISM)"
+                                                Style="{StaticResource SecondaryBtn}"
+                                                Command="{Binding ForceRestoreSystem32Command}"
+                                                IsEnabled="{Binding IsNotBusy}"
+                                                HorizontalAlignment="Stretch"
+                                                Foreground="#F44747"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ── Capture settings ──────────────────────────── -->
+                            <Separator Margin="0,12,0,10" Background="{StaticResource BorderBrush}"/>
+
+                            <TextBlock Text="Capture Output Directory"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DimTextBrush}"
+                                       Margin="0,0,0,5"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid Grid.Column="0" Height="26">
+                                    <TextBox Text="{Binding CaptureOutputDir, UpdateSourceTrigger=PropertyChanged}"
+                                             VerticalContentAlignment="Center"/>
+                                    <TextBlock Text="Default (game directory)"
+                                               Foreground="{StaticResource DimTextBrush}"
+                                               IsHitTestVisible="False"
+                                               VerticalAlignment="Center"
+                                               Margin="6,0,0,0"
+                                               Opacity="0.6">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CaptureOutputDir}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding CaptureOutputDir}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                                <Button Grid.Column="2"
+                                        Content="Browse..."
+                                        Style="{StaticResource SecondaryBtn}"
+                                        Command="{Binding SelectCaptureOutputDirCommand}"
+                                        Padding="8,4"/>
+                            </Grid>
+
+                            <CheckBox Content="Deferred capture  (switches to Trigger tab on launch)"
+                                      IsChecked="{Binding DeferCapture}"
+                                      Margin="0,10,0,0"
+                                      FontSize="11"/>
+
+                        </StackPanel>
+                    </GroupBox>
+                </Grid>
+            </TabItem>
+
+            <!-- Tab 1: Capture trigger (active only while a game is running) -->
+            <TabItem Header="Trigger" IsEnabled="{Binding HasActiveCapture}">
+                <Grid Margin="24,20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="16"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="12"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Game name + live status indicator -->
+                    <Grid Grid.Row="0">
+                        <TextBlock FontSize="16" FontWeight="SemiBold"
+                                   Text="{Binding ActiveCapture.GameName, FallbackValue='—'}"/>
+                        <TextBlock Text="{Binding ActiveCapture.StatusIndicatorText}"
+                                   Foreground="{Binding ActiveCapture.StatusIndicatorColor}"
+                                   FontSize="12" FontWeight="SemiBold"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Trigger / Stop button -->
+                    <Button Grid.Row="2"
+                            Content="{Binding ActiveCapture.TriggerButtonText}"
+                            Command="{Binding ActiveCapture.TriggerCaptureCommand}"
+                            Style="{StaticResource PrimaryBtn}"
+                            FontSize="14" FontWeight="SemiBold"
+                            Padding="0,14"
+                            MaxWidth="320"
+                            HorizontalAlignment="Left"/>
+
+                    <!-- Output directory -->
+                    <StackPanel Grid.Row="4" Orientation="Horizontal">
+                        <TextBlock Text="Output: " FontSize="11"
+                                   Foreground="{StaticResource DimTextBrush}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding ActiveCapture.CaptureOutputDir}"
+                                   FontSize="11"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="500"
+                                   ToolTip="{Binding ActiveCapture.CaptureOutputDir}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Capture status message -->
+                    <TextBlock Grid.Row="5"
+                               Text="{Binding ActiveCapture.StatusMessage}"
+                               FontSize="11"
+                               Foreground="{StaticResource DimTextBrush}"
+                               VerticalAlignment="Bottom"
+                               Margin="0,0,0,8"/>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- ── Launch bar ─────────────────────────────────────────────── -->
+        <Border Grid.Row="2"
+                Background="{StaticResource PanelBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,1"
+                Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Foreground="{StaticResource DimTextBrush}" FontSize="11"
+                               Text="Selected game:"/>
+                    <TextBlock FontSize="14" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               Text="{Binding SelectedGame.Name, FallbackValue='— none selected —'}"/>
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Content="Copy Log"
+                        Style="{StaticResource SecondaryBtn}"
+                        Command="{Binding CopyLogCommand}"
+                        FontSize="12"
+                        Padding="14,12"
+                        VerticalAlignment="Center"
+                        ToolTip="Copy the full session log to the clipboard"/>
+
+                <Button Grid.Column="3"
+                        Content="Launch Capture"
+                        Style="{StaticResource PrimaryBtn}"
+                        Command="{Binding LaunchCaptureCommand}"
+                        IsEnabled="{Binding IsNotBusy}"
+                        FontSize="14" FontWeight="SemiBold"
+                        Padding="28,12"
+                        VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- ── Status bar ─────────────────────────────────────────────── -->
+        <Border Grid.Row="3" Background="{StaticResource AccentBrush}" Padding="10,0">
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="White" FontSize="11"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+        </Border>
+    </Grid>
+</Window>

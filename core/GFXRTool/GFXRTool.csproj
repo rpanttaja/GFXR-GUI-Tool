@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>GFXRTool</AssemblyName>
+    <RootNamespace>GFXRTool</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+  </ItemGroup>
+
+  <!-- Build GFXRWatcher alongside GFXRTool and copy its exe to the output directory -->
+  <ItemGroup>
+    <ProjectReference Include="..\GFXRWatcher\GFXRWatcher.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopyGFXRWatcher" AfterTargets="Build">
+    <Copy
+      SourceFiles="..\GFXRWatcher\bin\$(Configuration)\net8.0-windows\GFXRWatcher.exe"
+      DestinationFolder="$(OutDir)"
+      SkipUnchangedFiles="true"
+      Condition="Exists('..\GFXRWatcher\bin\$(Configuration)\net9.0-windows\GFXRWatcher.exe')" />
+  </Target>
+
+  <!-- Copy the Layers folder (GFXR proxy DLLs) alongside the exe on every build -->
+  <ItemGroup>
+    <Content Include="..\Layers\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Layers\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
+</Project>
