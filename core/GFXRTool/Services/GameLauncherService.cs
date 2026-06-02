@@ -41,28 +41,37 @@ public class GameLauncherService
             throw new InvalidOperationException(
                 $"'{game.Name}' has no launcher ID — use Standard deployment instead.");
 
-        var gameDir = Path.GetDirectoryName(game.ExecutablePath)!;
-        var gameExeName = Path.GetFileNameWithoutExtension(game.ExecutablePath);
+        var gameDir         = Path.GetDirectoryName(game.ExecutablePath)!;
+        var launcherExeName = Path.GetFileNameWithoutExtension(game.ExecutablePath);
 
-        // 1. Stage the DLLs before the game process exists (they must be on disk when the
-        //    launcher spawns the game so EAC sees the correct d3d12/dxgi from the start).
         progress?.Report($"Staging {dlls.Count} layer(s) into {gameDir}...");
         var copied = await StageDllsAsync(gameDir, dlls);
 
-        // 2. Fire the protocol URL.  The launcher validates the game binary and spawns it
-        //    under its own trust chain, which satisfies EAC/BattlEye.
-        var protocolUrl = BuildProtocolUrl(game);
-        progress?.Report($"Firing launcher: {protocolUrl}");
+        try
+        {
+            var protocolUrl = BuildProtocolUrl(game);
+            progress?.Report($"Firing launcher: {protocolUrl}");
+            Process.Start(new ProcessStartInfo(protocolUrl) { UseShellExecute = true });
 
-        Process.Start(new ProcessStartInfo(protocolUrl) { UseShellExecute = true });
+            // Poll for the real game process — any process whose exe lives under
+            // gameDir, excluding the bootstrapper/launcher exe itself.
+            // This handles games like Squad where squad_launcher.exe spawns Squad.exe
+            // and exits; attaching to the bootstrapper would trigger cleanup instantly.
+            progress?.Report("Waiting for game process...");
+            var gameProcess = await WaitForGameProcessInDirAsync(
+                gameDir, launcherExeName, timeoutMs: 120_000, ct, progress);
 
-        // 3. Poll for the game process.  The launcher may take several seconds to validate
-        //    the executable, patch overlays, and then spawn it.
-        progress?.Report("Waiting for game process...");
-        var gameProcess = await WaitForGameProcessAsync(gameExeName, timeoutMs: 120_000, ct);
-        progress?.Report($"Attached to {gameExeName} (PID {gameProcess.Id}).");
-
-        return (gameProcess, copied);
+            var attachedName = gameProcess.ProcessName;
+            progress?.Report($"Attached to {attachedName} (PID {gameProcess.Id}).");
+            return (gameProcess, copied);
+        }
+        catch
+        {
+            // Clean up staged DLLs on any failure so they don't get left orphaned.
+            // The caller's MonitorGame never fires if we throw here.
+            CleanupStagedDlls(copied);
+            throw;
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -78,26 +87,58 @@ public class GameLauncherService
         };
     }
 
-    private static async Task<Process> WaitForGameProcessAsync(
-        string exeName, int timeoutMs, CancellationToken ct)
+    // Looks for any process whose exe is under gameDir (or a subdirectory) that
+    // is NOT the bootstrapper/launcher exe. Returns as soon as one is found.
+    private static async Task<Process> WaitForGameProcessInDirAsync(
+        string gameDir, string launcherExeName,
+        int timeoutMs, CancellationToken ct,
+        IProgress<string>? progress = null)
     {
-        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
-        const int pollMs = 500;
+        var deadline          = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        var normalizedGameDir = Path.GetFullPath(gameDir).TrimEnd('\\', '/');
+        const int pollMs      = 500;
 
         while (DateTime.UtcNow < deadline)
         {
             ct.ThrowIfCancellationRequested();
 
-            var match = Process.GetProcessesByName(exeName)
-                               .FirstOrDefault(p => !p.HasExited);
-            if (match != null) return match;
+            foreach (var proc in Process.GetProcesses())
+            {
+                if (proc.HasExited) continue;
+                try
+                {
+                    var exePath = proc.MainModule?.FileName;
+                    if (exePath == null) continue;
+
+                    var exeDir  = Path.GetFullPath(Path.GetDirectoryName(exePath)!).TrimEnd('\\', '/');
+                    var exeName = Path.GetFileNameWithoutExtension(exePath);
+
+                    // Must be inside the game directory tree, but not the bootstrapper.
+                    if (exeDir.StartsWith(normalizedGameDir, StringComparison.OrdinalIgnoreCase) &&
+                        !exeName.Equals(launcherExeName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return proc;
+                    }
+                }
+                catch { /* access denied on system processes — skip */ }
+            }
 
             await Task.Delay(pollMs, ct);
         }
 
         throw new TimeoutException(
-            $"Game process '{exeName}' did not appear within {timeoutMs / 1000}s. " +
-            "The launcher may need longer, or the game name does not match the executable.");
+            $"No game process found under '{gameDir}' within {timeoutMs / 1000}s. " +
+            "The launcher may need longer, or EAC may have blocked the launch.");
+    }
+
+    internal static void CleanupStagedDlls(IReadOnlyList<(string Dest, string? Backup)> copied)
+    {
+        foreach (var (dest, backup) in copied)
+        {
+            try { if (File.Exists(dest)) File.Delete(dest); } catch { }
+            if (backup != null)
+                try { if (File.Exists(backup)) File.Move(backup, dest, overwrite: true); } catch { }
+        }
     }
 
     // Copies GFXR DLLs into targetDir, backing up any existing file with the same name.

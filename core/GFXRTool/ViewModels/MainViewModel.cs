@@ -463,15 +463,8 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private static void CleanupDlls(IReadOnlyList<(string Dest, string? Backup)> copied)
-    {
-        foreach (var (dest, backup) in copied)
-        {
-            try { if (File.Exists(dest)) File.Delete(dest); } catch { }
-            if (backup != null)
-                try { if (File.Exists(backup)) File.Move(backup, dest, overwrite: true); } catch { }
-        }
-    }
+    private static void CleanupDlls(IReadOnlyList<(string Dest, string? Backup)> copied) =>
+        GameLauncherService.CleanupStagedDlls(copied);
 
     private void SwitchToCaptureTab(string gameName, System.Diagnostics.Process process)
     {
@@ -563,7 +556,7 @@ public partial class MainViewModel : ObservableObject
 
         if (_activeCopied != null)
         {
-            CleanupDlls(_activeCopied);
+            GameLauncherService.CleanupStagedDlls(_activeCopied);
             _log.Log($"  Removed {_activeCopied.Count} staged DLL(s) and restored backups.");
         }
 
