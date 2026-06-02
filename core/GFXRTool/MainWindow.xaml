@@ -403,6 +403,8 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="8"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
@@ -422,7 +424,50 @@
                         VerticalAlignment="Center"
                         ToolTip="Copy the full session log to the clipboard"/>
 
+                <!-- Only shown while DLLs are staged in the game folder -->
                 <Button Grid.Column="3"
+                        Content="Remove DLLs"
+                        Command="{Binding RemoveStagedDllsCommand}"
+                        FontSize="12" FontWeight="SemiBold"
+                        Padding="14,12"
+                        VerticalAlignment="Center"
+                        Foreground="White"
+                        ToolTip="{Binding StagedInDir, StringFormat='Remove GFXR DLLs from: {0}'}">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Background"      Value="#7B2C2C"/>
+                            <Setter Property="BorderBrush"     Value="#C0392B"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Setter Property="Cursor"          Value="Hand"/>
+                            <Setter Property="Visibility"      Value="Collapsed"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="3"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#E74C3C"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasStagedDlls}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <Button Grid.Column="5"
                         Content="Launch Capture"
                         Style="{StaticResource PrimaryBtn}"
                         Command="{Binding LaunchCaptureCommand}"

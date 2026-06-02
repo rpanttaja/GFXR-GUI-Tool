@@ -385,7 +385,16 @@ public partial class MainViewModel : ObservableObject
                         _log.Log($"  staged: {dest}  backup={bak ?? "none"}");
                     SetStatus($"{game.Name} launched — {copied.Count} DLL(s) deployed to {deployDir}");
                     process = proc;
-                    MonitorGame(proc, () => CleanupDlls(copied));
+                    _activeCopied = copied;
+                    StagedInDir   = deployDir;
+                    RemoveStagedDllsCommand.NotifyCanExecuteChanged();
+                    MonitorGame(proc, () =>
+                    {
+                        CleanupDlls(copied);
+                        _activeCopied = null;
+                        StagedInDir   = null;
+                        RemoveStagedDllsCommand.NotifyCanExecuteChanged();
+                    });
                     break;
                 }
 
@@ -395,11 +404,21 @@ public partial class MainViewModel : ObservableObject
                     {
                         _log.Log("  No LauncherId — falling back to Standard");
                         SetStatus("No launcher ID — falling back to Standard deployment.");
+                        var deployDir2 = Path.GetDirectoryName(game.ExecutablePath)!;
                         var (fbProc, fbCopied) = await _launcher.LaunchWithSideloadAsync(game, dlls);
                         _log.Log($"  PID {fbProc.Id} started (fallback)");
                         SetStatus($"{game.Name} launched (Standard fallback) — {fbCopied.Count} DLL(s) deployed.");
                         process = fbProc;
-                        MonitorGame(fbProc, () => CleanupDlls(fbCopied));
+                        _activeCopied = fbCopied;
+                        StagedInDir   = deployDir2;
+                        RemoveStagedDllsCommand.NotifyCanExecuteChanged();
+                        MonitorGame(fbProc, () =>
+                        {
+                            CleanupDlls(fbCopied);
+                            _activeCopied = null;
+                            StagedInDir   = null;
+                            RemoveStagedDllsCommand.NotifyCanExecuteChanged();
+                        });
                     }
                     else
                     {
@@ -410,7 +429,16 @@ public partial class MainViewModel : ObservableObject
                             _log.Log($"  staged: {dest}  backup={bak ?? "none"}");
                         SetStatus($"{game.Name} launched via {game.Source} launcher.");
                         process = injProc;
-                        MonitorGame(injProc, () => CleanupDlls(injCopied));
+                        _activeCopied = injCopied;
+                        StagedInDir   = Path.GetDirectoryName(game.ExecutablePath)!;
+                        RemoveStagedDllsCommand.NotifyCanExecuteChanged();
+                        MonitorGame(injProc, () =>
+                        {
+                            CleanupDlls(injCopied);
+                            _activeCopied = null;
+                            StagedInDir   = null;
+                            RemoveStagedDllsCommand.NotifyCanExecuteChanged();
+                        });
                     }
                     break;
                 }
@@ -514,6 +542,54 @@ public partial class MainViewModel : ObservableObject
     }
 
     private bool CanLaunch() => SelectedGame != null && Dlls.Count > 0;
+
+    // ── Manual DLL cleanup ────────────────────────────────────────────────────
+    // Tracks the last set of staged DLLs so they can be removed manually if the
+    // game crashes before the normal on-exit cleanup fires.
+
+    private IReadOnlyList<(string Dest, string? Backup)>? _activeCopied;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStagedDlls))]
+    private string? _stagedInDir;
+
+    public bool HasStagedDlls => StagedInDir != null;
+
+    [RelayCommand(CanExecute = nameof(HasStagedDlls))]
+    private void RemoveStagedDlls()
+    {
+        var dir = StagedInDir;
+        _log.Log($"Manual DLL removal requested in: {dir}");
+
+        if (_activeCopied != null)
+        {
+            CleanupDlls(_activeCopied);
+            _log.Log($"  Removed {_activeCopied.Count} staged DLL(s) and restored backups.");
+        }
+
+        // Also sweep for any orphaned .gfxr_bak files left by a previous crashed session.
+        if (dir != null && Directory.Exists(dir))
+        {
+            foreach (var bak in Directory.GetFiles(dir, "*.gfxr_bak"))
+            {
+                var original = bak[..^".gfxr_bak".Length]; // strip the suffix
+                try
+                {
+                    if (!File.Exists(original))
+                        File.Move(bak, original);
+                    else
+                        File.Delete(bak);
+                    _log.Log($"  Cleaned up orphan: {bak}");
+                }
+                catch (Exception ex) { _log.LogError("RemoveStagedDlls orphan", ex); }
+            }
+        }
+
+        _activeCopied = null;
+        StagedInDir   = null;
+        SetStatus("GFXR DLLs removed from game folder.");
+        RemoveStagedDllsCommand.NotifyCanExecuteChanged();
+    }
 
     // ── Log ───────────────────────────────────────────────────────────────────
 
