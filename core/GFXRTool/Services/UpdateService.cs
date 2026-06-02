@@ -7,8 +7,8 @@ namespace GFXRTool.Services;
 
 public class UpdateService
 {
-    private const string Repo    = "rpanttaja/GFXR-GUI-Tool";
-    private const string ApiUrl  = $"https://api.github.com/repos/{Repo}/releases/latest";
+    private const string Repo        = "rpanttaja/GFXR-GUI-Tool";
+    private const string ApiUrl      = $"https://api.github.com/repos/{Repo}/releases/latest";
     private const string VersionFile = "version.txt";
 
     private static readonly HttpClient Http = new();
@@ -29,11 +29,13 @@ public class UpdateService
         return await Http.GetFromJsonAsync<ReleaseInfo>(ApiUrl);
     }
 
-    // Downloads the latest release zip, extracts it over the current install dir,
-    // preserves the Layers folder, writes version.txt, then restarts the app.
+    // Downloads the zip, extracts it, then hands off to a small PowerShell helper
+    // that waits for this process to exit before copying files.
+    // We can't overwrite GFXRTool.exe (or its DLLs) while they are loaded — the
+    // helper runs as a separate process so Windows releases the file locks first.
     public async Task UpdateAndRestartAsync(ReleaseInfo release, IProgress<string> progress)
     {
-        var installDir = AppDomain.CurrentDomain.BaseDirectory;
+        var installDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
         var zipAsset   = release.Assets?.FirstOrDefault(a => a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
                          ?? throw new InvalidOperationException("No zip asset found in release.");
 
@@ -48,64 +50,99 @@ public class UpdateService
             await response.Content.CopyToAsync(fs);
         }
 
-        progress.Report("Download complete. Preparing to install...");
+        progress.Report("Download complete. Extracting...");
 
-        // ── Extract to a temp dir ─────────────────────────────────────────────
+        // ── Extract ───────────────────────────────────────────────────────────
         var tempDir = Path.Combine(Path.GetTempPath(), $"GFXRTool-extract-{release.TagName}");
         if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
-        System.IO.Compression.ZipFile.ExtractToDirectory(tempZip, tempDir);
+        ZipFile.ExtractToDirectory(tempZip, tempDir);
 
-        // The zip may contain a single top-level folder — unwrap it.
+        // Unwrap single top-level folder if present.
         var items       = Directory.GetFileSystemEntries(tempDir);
         var contentRoot = items.Length == 1 && Directory.Exists(items[0]) ? items[0] : tempDir;
 
-        // ── Preserve Layers ───────────────────────────────────────────────────
-        var layersDst    = Path.Combine(installDir, "Layers");
+        // ── Write the helper script ───────────────────────────────────────────
+        // PowerShell script runs outside the app, waits for our PID to exit,
+        // copies new files (skipping Layers), restores Layers, writes version.txt,
+        // then relaunches GFXRTool.exe.
+        var currentPid  = Environment.ProcessId;
+        var layersDst   = Path.Combine(installDir, "Layers");
         var layersBackup = Path.Combine(Path.GetTempPath(), $"GFXRTool-Layers-{release.TagName}");
+        var helperScript = Path.Combine(Path.GetTempPath(), "GFXRTool-update-helper.ps1");
+        var newExe       = Path.Combine(installDir, "GFXRTool.exe");
+        var versionDst   = Path.Combine(installDir, VersionFile);
 
-        if (Directory.Exists(layersDst))
+        var ps = $"""
+            $pid_to_wait = {currentPid}
+            $src         = '{EscapePs(contentRoot)}'
+            $dst         = '{EscapePs(installDir)}'
+            $layersDst   = '{EscapePs(layersDst)}'
+            $layersBak   = '{EscapePs(layersBackup)}'
+            $versionFile = '{EscapePs(versionDst)}'
+            $newVersion  = '{release.TagName}'
+            $newExe      = '{EscapePs(newExe)}'
+            $tempZip     = '{EscapePs(tempZip)}'
+            $tempDir     = '{EscapePs(tempDir)}'
+
+            # Wait for the app to fully release its file locks
+            try {{
+                $proc = Get-Process -Id $pid_to_wait -ErrorAction SilentlyContinue
+                if ($proc) {{ $proc.WaitForExit(30000) | Out-Null }}
+            }} catch {{ }}
+            Start-Sleep -Milliseconds 500
+
+            # Back up Layers so we don't overwrite the user's real capture DLLs
+            if (Test-Path $layersDst) {{
+                if (Test-Path $layersBak) {{ Remove-Item $layersBak -Recurse -Force }}
+                Copy-Item $layersDst $layersBak -Recurse -Force
+            }}
+
+            # Copy all new files, skip Layers from the zip
+            Get-ChildItem $src | Where-Object {{ $_.Name -ne 'Layers' }} | ForEach-Object {{
+                $target = Join-Path $dst $_.Name
+                if ($_.PSIsContainer) {{
+                    Copy-Item $_.FullName $target -Recurse -Force
+                }} else {{
+                    Copy-Item $_.FullName $target -Force
+                }}
+            }}
+
+            # Restore user's Layers
+            if (Test-Path $layersBak) {{
+                Copy-Item $layersBak $layersDst -Recurse -Force
+                Remove-Item $layersBak -Recurse -Force -ErrorAction SilentlyContinue
+            }}
+
+            # Stamp new version
+            $newVersion | Set-Content $versionFile
+
+            # Cleanup temp files
+            Remove-Item $tempZip -Force -ErrorAction SilentlyContinue
+            Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+
+            # Relaunch
+            Start-Process $newExe
+            """;
+
+        File.WriteAllText(helperScript, ps);
+
+        // ── Launch helper and exit ────────────────────────────────────────────
+        progress.Report($"Handing off to update helper — restarting as {release.TagName}...");
+
+        Process.Start(new ProcessStartInfo
         {
-            progress.Report("Preserving Layers folder...");
-            if (Directory.Exists(layersBackup)) Directory.Delete(layersBackup, recursive: true);
-            CopyDirectory(layersDst, layersBackup);
-        }
+            FileName        = "powershell.exe",
+            Arguments       = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{helperScript}\"",
+            UseShellExecute = true,
+            WindowStyle     = ProcessWindowStyle.Hidden,
+        });
 
-        // ── Copy new files, skip Layers ───────────────────────────────────────
-        progress.Report("Installing update...");
-        foreach (var entry in new DirectoryInfo(contentRoot).EnumerateFileSystemInfos())
-        {
-            if (entry.Name.Equals("Layers", StringComparison.OrdinalIgnoreCase)) continue;
-
-            var dst = Path.Combine(installDir, entry.Name);
-            if (entry is DirectoryInfo di)
-                CopyDirectory(di.FullName, dst);
-            else
-                File.Copy(entry.FullName, dst, overwrite: true);
-        }
-
-        // ── Restore Layers ────────────────────────────────────────────────────
-        if (Directory.Exists(layersBackup))
-        {
-            progress.Report("Restoring Layers folder...");
-            CopyDirectory(layersBackup, layersDst);
-        }
-
-        // ── Write version stamp ───────────────────────────────────────────────
-        File.WriteAllText(Path.Combine(installDir, VersionFile), release.TagName);
-
-        // ── Cleanup ───────────────────────────────────────────────────────────
-        try { File.Delete(tempZip); } catch { }
-        try { Directory.Delete(tempDir,    recursive: true); } catch { }
-        try { Directory.Delete(layersBackup, recursive: true); } catch { }
-
-        // ── Restart ───────────────────────────────────────────────────────────
-        progress.Report($"Update to {release.TagName} complete. Restarting...");
-
-        var exe = Path.Combine(installDir, "GFXRTool.exe");
-        Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+        // Shut down — the helper is now watching our PID and will take over once we're gone.
         System.Windows.Application.Current.Dispatcher.Invoke(
             () => System.Windows.Application.Current.Shutdown());
     }
+
+    private static string EscapePs(string path) => path.Replace("'", "''");
 
     private static void CopyDirectory(string src, string dst)
     {
