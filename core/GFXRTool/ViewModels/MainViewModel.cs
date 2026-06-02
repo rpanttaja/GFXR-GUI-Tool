@@ -365,11 +365,6 @@ public partial class MainViewModel : ObservableObject
 
         SetStatus($"Launching {game.Name}...");
 
-        if (DeferCapture)
-            Environment.SetEnvironmentVariable("GFXRECON_CAPTURE_TRIGGER", "F12");
-        if (!string.IsNullOrWhiteSpace(CaptureOutputDir))
-            Environment.SetEnvironmentVariable("GFXRECON_CAPTURE_FILE_DIR", CaptureOutputDir);
-
         System.Diagnostics.Process? process = null;
         try
         {
@@ -379,7 +374,8 @@ public partial class MainViewModel : ObservableObject
                 {
                     var deployDir = Path.GetDirectoryName(game.ExecutablePath)!;
                     SetStatus($"Deploying {dlls.Count} layer(s) to: {deployDir}");
-                    var (proc, copied) = await _launcher.LaunchWithSideloadAsync(game, dlls);
+                    var (proc, copied) = await _launcher.LaunchWithSideloadAsync(
+                        game, dlls, CaptureOutputDir, DeferCapture);
                     _log.Log($"  PID {proc.Id} started");
                     foreach (var (dest, bak) in copied)
                         _log.Log($"  staged: {dest}  backup={bak ?? "none"}");
@@ -391,6 +387,7 @@ public partial class MainViewModel : ObservableObject
                     MonitorGame(proc, () =>
                     {
                         CleanupDlls(copied);
+                        GameLauncherService.DeleteSettingsFile(deployDir);
                         _activeCopied = null;
                         StagedInDir   = null;
                         RemoveStagedDllsCommand.NotifyCanExecuteChanged();
@@ -405,7 +402,8 @@ public partial class MainViewModel : ObservableObject
                         _log.Log("  No LauncherId — falling back to Standard");
                         SetStatus("No launcher ID — falling back to Standard deployment.");
                         var deployDir2 = Path.GetDirectoryName(game.ExecutablePath)!;
-                        var (fbProc, fbCopied) = await _launcher.LaunchWithSideloadAsync(game, dlls);
+                        var (fbProc, fbCopied) = await _launcher.LaunchWithSideloadAsync(
+                            game, dlls, CaptureOutputDir, DeferCapture);
                         _log.Log($"  PID {fbProc.Id} started (fallback)");
                         SetStatus($"{game.Name} launched (Standard fallback) — {fbCopied.Count} DLL(s) deployed.");
                         process = fbProc;
@@ -415,6 +413,7 @@ public partial class MainViewModel : ObservableObject
                         MonitorGame(fbProc, () =>
                         {
                             CleanupDlls(fbCopied);
+                            GameLauncherService.DeleteSettingsFile(deployDir2);
                             _activeCopied = null;
                             StagedInDir   = null;
                             RemoveStagedDllsCommand.NotifyCanExecuteChanged();
@@ -422,19 +421,22 @@ public partial class MainViewModel : ObservableObject
                     }
                     else
                     {
+                        var injDir = Path.GetDirectoryName(game.ExecutablePath)!;
                         var (injProc, injCopied) = await _launcher.LaunchViaLauncherAsync(
-                            game, dlls, new Progress<string>(SetStatus));
+                            game, dlls, CaptureOutputDir, DeferCapture,
+                            new Progress<string>(SetStatus));
                         _log.Log($"  PID {injProc.Id} attached via launcher");
                         foreach (var (dest, bak) in injCopied)
                             _log.Log($"  staged: {dest}  backup={bak ?? "none"}");
                         SetStatus($"{game.Name} launched via {game.Source} launcher.");
                         process = injProc;
                         _activeCopied = injCopied;
-                        StagedInDir   = Path.GetDirectoryName(game.ExecutablePath)!;
+                        StagedInDir   = injDir;
                         RemoveStagedDllsCommand.NotifyCanExecuteChanged();
                         MonitorGame(injProc, () =>
                         {
                             CleanupDlls(injCopied);
+                            GameLauncherService.DeleteSettingsFile(injDir);
                             _activeCopied = null;
                             StagedInDir   = null;
                             RemoveStagedDllsCommand.NotifyCanExecuteChanged();
@@ -455,11 +457,6 @@ public partial class MainViewModel : ObservableObject
         {
             _log.LogError("LaunchCapture", ex);
             SetStatus($"Launch failed: {ex.Message}");
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("GFXRECON_CAPTURE_TRIGGER",  null);
-            Environment.SetEnvironmentVariable("GFXRECON_CAPTURE_FILE_DIR", null);
         }
     }
 
@@ -559,6 +556,9 @@ public partial class MainViewModel : ObservableObject
             GameLauncherService.CleanupStagedDlls(_activeCopied);
             _log.Log($"  Removed {_activeCopied.Count} staged DLL(s) and restored backups.");
         }
+
+        if (dir != null)
+            GameLauncherService.DeleteSettingsFile(dir);
 
         // Also sweep for any orphaned .gfxr_bak files left by a previous crashed session.
         if (dir != null && Directory.Exists(dir))
