@@ -15,6 +15,7 @@ public partial class MainViewModel : ObservableObject
     private readonly GameDiscoveryService _discovery = new();
     private readonly GameLauncherService  _launcher  = new();
     private readonly System32Service      _sys32     = new();
+    private readonly UpdateService        _updater   = new();
     private readonly LogService           _log       = App.StartupLog;
 
     public ObservableCollection<Game>    Games { get; } = new();
@@ -529,5 +530,69 @@ public partial class MainViewModel : ObservableObject
         _log.CopyToClipboard();
         // Don't go through SetStatus — avoid a redundant log entry for the copy action itself.
         StatusMessage = "Log copied to clipboard — paste it wherever needed.";
+    }
+
+    // ── Update ────────────────────────────────────────────────────────────────
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateButtonText))]
+    private UpdateService.ReleaseInfo? _pendingRelease;
+
+    public string UpdateButtonText => PendingRelease != null
+        ? $"Update to {PendingRelease.TagName}"
+        : $"Check for Update  ({_updater.InstalledVersion()})";
+
+    [RelayCommand]
+    private async Task CheckOrApplyUpdateAsync()
+    {
+        if (PendingRelease != null)
+        {
+            // Button was already showing a pending update — apply it.
+            IsBusy = true;
+            try
+            {
+                _log.Log($"Applying update to {PendingRelease.TagName}...");
+                await _updater.UpdateAndRestartAsync(PendingRelease, new Progress<string>(SetStatus));
+            }
+            catch (Exception ex)
+            {
+                _log.LogError("Update", ex);
+                SetStatus($"Update failed: {ex.Message}");
+            }
+            finally { IsBusy = false; }
+            return;
+        }
+
+        // First click — check for a newer version.
+        SetStatus("Checking for updates...");
+        _log.Log($"Checking for updates (installed: {_updater.InstalledVersion()})...");
+        try
+        {
+            var release = await _updater.GetLatestReleaseAsync();
+            var latest  = release?.TagName;
+
+            if (latest == null)
+            {
+                SetStatus("Could not determine latest version.");
+                return;
+            }
+
+            _log.Log($"Latest release: {latest}");
+
+            if (latest == _updater.InstalledVersion())
+            {
+                SetStatus($"Already up to date ({latest}).");
+                return;
+            }
+
+            // A newer version is available — arm the button.
+            PendingRelease = release;
+            SetStatus($"Update available: {latest} — click the button again to install.");
+        }
+        catch (Exception ex)
+        {
+            _log.LogError("CheckForUpdate", ex);
+            SetStatus($"Update check failed: {ex.Message}");
+        }
     }
 }

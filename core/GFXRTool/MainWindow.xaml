@@ -23,12 +23,67 @@
         <!-- ── Header ─────────────────────────────────────────────────── -->
         <Border Grid.Row="0" Background="{StaticResource AccentBrush}">
             <Grid Margin="16,0">
-                <TextBlock Text="GFXR Capture Tool"
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="GFXR Capture Tool"
                            FontSize="15" FontWeight="SemiBold"
                            Foreground="White" VerticalAlignment="Center"/>
-                <TextBlock Text="Graphics Frame Recorder  |  Standard · Injection · System32"
+
+                <TextBlock Grid.Column="1"
+                           Text="Graphics Frame Recorder  |  Standard · Injection · System32"
                            FontSize="11" Foreground="#B3DEFF"
-                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                <Button Grid.Column="2"
+                        Content="{Binding UpdateButtonText}"
+                        Command="{Binding CheckOrApplyUpdateCommand}"
+                        IsEnabled="{Binding IsNotBusy}"
+                        VerticalAlignment="Center"
+                        Padding="12,6"
+                        FontSize="11"
+                        Foreground="White">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Background"      Value="#1A5276"/>
+                            <Setter Property="BorderBrush"     Value="#2E86C1"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Setter Property="Cursor"          Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="3"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#2980B9"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.45"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <!-- Turn orange when an update is ready to apply -->
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding PendingRelease}" Value="{x:Null}">
+                                    <Setter Property="Background"  Value="#1A5276"/>
+                                    <Setter Property="BorderBrush" Value="#2E86C1"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
             </Grid>
         </Border>
 
