@@ -19,6 +19,7 @@ public partial class CaptureViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(StatusIndicatorText))]
     [NotifyPropertyChangedFor(nameof(StatusIndicatorColor))]
     [NotifyPropertyChangedFor(nameof(CaptureStatusText))]
+    [NotifyPropertyChangedFor(nameof(CaptureStatusColor))]
     private bool _isCapturing;
 
     [ObservableProperty]
