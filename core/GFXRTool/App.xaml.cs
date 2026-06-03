@@ -15,8 +15,6 @@ public sealed class InverseBoolConverter : IValueConverter
         => value is bool b && !b;
 }
 
-namespace GFXRTool;
-
 public partial class App : Application
 {
     // Shared log used by the crash handlers before MainViewModel is constructed.
