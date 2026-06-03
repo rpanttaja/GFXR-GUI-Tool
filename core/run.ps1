@@ -52,12 +52,13 @@ try {
             Copy-Item $layersSrc $layersBak -Recurse -Force
         }
 
-        # Copy new source, skip Layers from zip
+        # Copy new source, skip Layers and build output from zip
+        $skipDirs = @("Layers", "bin", "obj")
         Get-ChildItem $src | ForEach-Object {
             $target = Join-Path $RepoRoot $_.Name
             if ($_.PSIsContainer) {
                 if ($_.Name -eq "core") {
-                    Get-ChildItem $_.FullName | Where-Object { $_.Name -ne "Layers" } | ForEach-Object {
+                    Get-ChildItem $_.FullName | Where-Object { $skipDirs -notcontains $_.Name } | ForEach-Object {
                         $t = Join-Path $target $_.Name
                         if ($_.PSIsContainer) { Copy-Item $_.FullName $t -Recurse -Force }
                         else { Copy-Item $_.FullName $t -Force }
@@ -67,6 +68,14 @@ try {
                 }
             } else {
                 Copy-Item $_.FullName $target -Force
+            }
+        }
+
+        # Clean stale build output so compiler doesn't see duplicate generated files
+        foreach ($proj in @("GFXRTool", "GFXRWatcher")) {
+            foreach ($dir in @("bin", "obj")) {
+                $p = Join-Path $RepoRoot "core\$proj\$dir"
+                if (Test-Path $p) { Remove-Item $p -Recurse -Force }
             }
         }
 
