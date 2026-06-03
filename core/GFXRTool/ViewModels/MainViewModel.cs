@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using GFXRTool.Models;
 using GFXRTool.Services;
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Windows;
 
 namespace GFXRTool.ViewModels;
@@ -56,9 +55,6 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(LaunchCaptureCommand))]
     private Game? _selectedGame;
 
-    [ObservableProperty]
-    private GfxrDll? _selectedDll;
-
     // ── System32 status ───────────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -77,10 +73,7 @@ public partial class MainViewModel : ObservableObject
 
     // Trigger key used for deferred capture — shown in button label and written to settings file.
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TriggerKeyLabel))]
     private string _triggerKey = "F12";
-
-    public string TriggerKeyLabel => $"F{TriggerKey[1..]}"; // "F12" → "F12"
 
     public static IReadOnlyList<string> AvailableTriggerKeys { get; } =
         Enumerable.Range(1, 12).Select(i => $"F{i}").ToList();
@@ -120,25 +113,12 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(IsNotBusy));
 
-    public string DllSummary => Dlls.Count switch
-    {
-        0 => "— no layers loaded —",
-        1 => Dlls[0].Name,
-        _ => $"{Dlls.Count} layers  ({string.Join(", ", Dlls.Select(d => d.Name))})"
-    };
-
     // ── Init ──────────────────────────────────────────────────────────────────
 
     public MainViewModel()
     {
-        Dlls.CollectionChanged += OnDllsChanged;
+        Dlls.CollectionChanged += (_, _) => LaunchCaptureCommand.NotifyCanExecuteChanged();
         LoadDefaultDlls();
-    }
-
-    private void OnDllsChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        LaunchCaptureCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(DllSummary));
     }
 
     private void LoadDefaultDlls()
@@ -230,38 +210,6 @@ public partial class MainViewModel : ObservableObject
         _log.Log($"Removed game: {SelectedGame.Name}");
         Games.Remove(SelectedGame);
         SelectedGame = null;
-    }
-
-    // ── DLL commands ──────────────────────────────────────────────────────────
-
-    [RelayCommand]
-    private void AddDll()
-    {
-        var dlg = new Microsoft.Win32.OpenFileDialog
-        {
-            Title  = "Select GFXR DLL",
-            Filter = "DLL Files (*.dll)|*.dll|All Files (*.*)|*.*"
-        };
-        if (dlg.ShowDialog() != true) return;
-
-        var dll = new GfxrDll
-        {
-            Name = Path.GetFileNameWithoutExtension(dlg.FileName),
-            Path = dlg.FileName
-        };
-        Dlls.Add(dll);
-        SelectedDll = dll;
-        _log.Log($"Manually added DLL: {dll.Path}");
-        SetStatus($"DLL added: {dll.Name}");
-    }
-
-    [RelayCommand]
-    private void RemoveDll()
-    {
-        if (SelectedDll == null) return;
-        _log.Log($"Removed DLL: {SelectedDll.Name}");
-        Dlls.Remove(SelectedDll);
-        SelectedDll = null;
     }
 
     // ── System32 commands ─────────────────────────────────────────────────────

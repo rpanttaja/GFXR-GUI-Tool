@@ -1,0 +1,32 @@
+Starting GFXR Capture Tool...
+
+
+>> Checking for updates (current: none)...
+   !! Could not check for updates (offline?): The remote server returned an error: (404) Not Found.
+   !! Continuing with current source...
+
+>> Checking for .NET 8 SDK...
+   OK: Found .NET 9.0.313 at C:\Program Files\dotnet\dotnet.exe
+
+>> Restoring NuGet packages...
+Restore complete (0.5s)
+
+Build succeeded in 0.6s
+   OK: Packages restored.
+
+>> Building (Release)...
+  GFXRWatcher succeeded (1.0s) → core\GFXRWatcher\bin\Release\net8.0-windows\GFXRWatcher.dll
+  GFXRTool failed with 1 error(s) (0.2s)
+    C:\Users\HCKTest\Downloads\GFXR-GUI-Tool-main (7)\GFXR-GUI-Tool-main\core\GFXRTool\MainWindow.xaml(438,19): error MC3000: 'The 'TabControl' start tag on line 91 position 10 does not match the end tag of 'Grid'. Line 438, position 19.' XML is not valid.
+
+Build failed with 1 error(s) in 1.4s
+C:\Users\HCKTest\Downloads\GFXR-GUI-Tool-main (7)\GFXR-GUI-Tool-main\core\run.ps1 : Build failed.
+At C:\Users\HCKTest\Downloads\GFXR-GUI-Tool-main (7)\GFXR-GUI-Tool-main\core\run.ps1:156 char:28
++ if ($LASTEXITCODE -ne 0) { Write-Error "Build failed."; exit 1 }
++                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,run.ps1
+
+
+Launch failed. Review the error above.
+Press any key to continue . . .

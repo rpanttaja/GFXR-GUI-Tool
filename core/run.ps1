@@ -10,31 +10,37 @@ function Write-Warn([string]$msg) { Write-Host "   !! $msg" -ForegroundColor Yel
 
 # ── 0. Auto-update from GitHub ────────────────────────────────────────────────
 
-$Repo           = "rpanttaja/GFXR-GUI-Tool"
-$VersionFile    = Join-Path $RepoRoot "version.txt"
-$CurrentVersion = if (Test-Path $VersionFile) { (Get-Content $VersionFile -Raw).Trim() } else { "" }
+# ── 0. Auto-update from GitHub ────────────────────────────────────────────────
+# Always pull the latest main branch source before building.
+# Uses a simple ETag-based check so it skips the download when nothing changed.
 
-Write-Step "Checking for updates (current: $(if ($CurrentVersion) { $CurrentVersion } else { 'none' }))..."
+$Repo        = "rpanttaja/GFXR-GUI-Tool"
+$SourceZipUrl = "https://github.com/$Repo/archive/refs/heads/main.zip"
+$ETagFile    = Join-Path $RepoRoot ".github_etag"
+
+Write-Step "Checking for updates..."
 
 try {
-    $headers  = @{ "User-Agent" = "GFXRTool-Bootstrap" }
-    $release  = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -Headers $headers
-    $latest   = $release.tag_name
+    $etagHeader = @{ "User-Agent" = "GFXRTool-Bootstrap" }
+    if (Test-Path $ETagFile) {
+        $etagHeader["If-None-Match"] = (Get-Content $ETagFile -Raw).Trim()
+    }
 
-    if ($latest -and $latest -ne $CurrentVersion) {
-        Write-Warn "New version available: $latest — downloading..."
+    $response = Invoke-WebRequest -Uri $SourceZipUrl -Headers $etagHeader `
+                                  -UseBasicParsing -ErrorAction Stop
 
-        # Download the release source zip
-        $sourceZip = Join-Path $env:TEMP "GFXR-source-$latest.zip"
-        $sourceDir = Join-Path $env:TEMP "GFXR-source-$latest"
+    if ($response.StatusCode -eq 200) {
+        # Save ETag for next run
+        $etag = $response.Headers["ETag"]
+        if ($etag) { $etag | Set-Content $ETagFile }
 
-        $zipUrl = "https://github.com/$Repo/archive/refs/heads/main.zip"
-        Invoke-WebRequest -Uri $zipUrl -OutFile $sourceZip -UseBasicParsing
+        $sourceZip = Join-Path $env:TEMP "GFXR-source-latest.zip"
+        [System.IO.File]::WriteAllBytes($sourceZip, $response.Content)
 
+        $sourceDir = Join-Path $env:TEMP "GFXR-source-latest"
         if (Test-Path $sourceDir) { Remove-Item $sourceDir -Recurse -Force }
         Expand-Archive -Path $sourceZip -DestinationPath $sourceDir
 
-        # GitHub archive has one top-level folder — unwrap it
         $inner = Get-ChildItem $sourceDir | Where-Object { $_.PSIsContainer } | Select-Object -First 1
         $src   = if ($inner) { $inner.FullName } else { $sourceDir }
 
@@ -46,12 +52,11 @@ try {
             Copy-Item $layersSrc $layersBak -Recurse -Force
         }
 
-        # Copy new source over repo root (skip Layers subfolder from zip)
+        # Copy new source, skip Layers from zip
         Get-ChildItem $src | ForEach-Object {
             $target = Join-Path $RepoRoot $_.Name
             if ($_.PSIsContainer) {
                 if ($_.Name -eq "core") {
-                    # Copy core but skip Layers inside it
                     Get-ChildItem $_.FullName | Where-Object { $_.Name -ne "Layers" } | ForEach-Object {
                         $t = Join-Path $target $_.Name
                         if ($_.PSIsContainer) { Copy-Item $_.FullName $t -Recurse -Force }
@@ -65,26 +70,19 @@ try {
             }
         }
 
-        # Restore Layers
         if (Test-Path $layersBak) {
             Copy-Item $layersBak $layersSrc -Recurse -Force
             Remove-Item $layersBak -Recurse -Force -ErrorAction SilentlyContinue
         }
 
-        # Stamp version
-        $latest | Set-Content $VersionFile
-
-        # Cleanup
         Remove-Item $sourceZip -Force -ErrorAction SilentlyContinue
         Remove-Item $sourceDir -Recurse -Force -ErrorAction SilentlyContinue
-
-        Write-OK "Updated to $latest."
-    } else {
-        Write-OK "Already up to date ($latest)."
+        Write-OK "Source updated."
+    } elseif ($response.StatusCode -eq 304) {
+        Write-OK "Already up to date (no changes on GitHub)."
     }
 } catch {
-    Write-Warn "Could not check for updates (offline?): $($_.Exception.Message)"
-    Write-Warn "Continuing with current source..."
+    Write-Warn "Could not check for updates (offline?). Continuing with current source..."
 }
 
 # ── 1. Find or install .NET 8 SDK ────────────────────────────────────────────
