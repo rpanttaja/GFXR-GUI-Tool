@@ -25,11 +25,21 @@ public partial class ReplayViewModel : ObservableObject
 
     public ReplayViewModel()
     {
-        // Auto-locate gfxrecon-replay.exe next to the running exe.
-        var baseDir     = AppDomain.CurrentDomain.BaseDirectory;
-        var defaultExe  = Path.Combine(baseDir, "gfxrecon-replay.exe");
-        if (File.Exists(defaultExe))
-            ReplayExePath = defaultExe;
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+        // Check next to the running exe first, then the sibling Replay\ folder
+        // (repo layout: core/GFXRTool/bin/... -> core/Replay/gfxrecon-replay.exe)
+        var candidates = new[]
+        {
+            Path.Combine(baseDir, "gfxrecon-replay.exe"),
+            Path.Combine(baseDir, "Replay", "gfxrecon-replay.exe"),
+            Path.Combine(baseDir, "..", "Replay", "gfxrecon-replay.exe"),
+            Path.Combine(baseDir, "..", "..", "..", "Replay", "gfxrecon-replay.exe"),
+        };
+
+        var found = candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists);
+        if (found != null)
+            ReplayExePath = found;
     }
 
     [RelayCommand]
