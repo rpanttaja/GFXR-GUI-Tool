@@ -11,17 +11,20 @@
         MinWidth="160"
         Height="68">
 
-    <!-- Outer border — static, never grabs focus -->
-    <Border x:Name="DragHandle"
-            Background="#D01A1A1A"
+    <!-- Outer border — drag handle on the status row, button separate -->
+    <Border Background="#D01A1A1A"
             BorderBrush="{Binding StatusIndicatorColor}"
             BorderThickness="1"
             CornerRadius="6"
             Padding="12,8">
         <StackPanel>
 
-            <!-- Top row: GFXR label + status text -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
+            <!-- Status row — drag this to move the overlay -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6"
+                        Cursor="SizeAll"
+                        MouseLeftButtonDown="OnDragStart"
+                        MouseMove="OnDragMove"
+                        MouseLeftButtonUp="OnDragEnd">
                 <TextBlock Text="GFXR"
                            Foreground="#707070"
                            FontSize="10" FontWeight="SemiBold"
