@@ -269,15 +269,9 @@
                                         Padding="8,4"/>
                             </Grid>
 
-                            <CheckBox Content="Deferred capture  (switches to Trigger tab on launch)"
-                                      IsChecked="{Binding DeferCapture}"
-                                      Margin="0,10,0,0"
-                                      FontSize="11"/>
-
-                            <!-- Trigger key selector — only shown when deferred capture is on -->
+                            <!-- Trigger key selector — always visible -->
                             <StackPanel Orientation="Horizontal"
-                                        Margin="0,8,0,0"
-                                        Visibility="{Binding DeferCapture, Converter={StaticResource BoolToVis}}">
+                                        Margin="0,10,0,0">
                                 <TextBlock Text="Trigger key:"
                                            FontSize="11" Foreground="{StaticResource DimTextBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>

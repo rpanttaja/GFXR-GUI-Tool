@@ -65,9 +65,6 @@ public partial class MainViewModel : ObservableObject
     // ── Capture settings ──────────────────────────────────────────────────────
 
     [ObservableProperty]
-    private bool _deferCapture;
-
-    [ObservableProperty]
     private string _captureOutputDir = string.Empty;
 
     // Trigger key used for deferred capture — shown in button label and written to settings file.
@@ -324,7 +321,7 @@ public partial class MainViewModel : ObservableObject
         _log.Log($"--- Launch ---  game={game.Name}  mode={LaunchMode}  id={game.LauncherId ?? "—"}");
         _log.Log($"  exe={game.ExecutablePath}");
         _log.Log($"  dlls=[{string.Join(", ", dlls.Select(d => d.Name))}]");
-        _log.Log($"  defer={DeferCapture}  triggerKey={TriggerKey}  outputDir={CaptureOutputDir}");
+        _log.Log($"  defer=true  triggerKey={TriggerKey}  outputDir={CaptureOutputDir}");
 
         SetStatus($"Launching {game.Name}...");
 
@@ -338,7 +335,7 @@ public partial class MainViewModel : ObservableObject
                     var deployDir = Path.GetDirectoryName(game.ExecutablePath)!;
                     SetStatus($"Deploying {dlls.Count} layer(s) to: {deployDir}");
                     var (proc, copied) = await _launcher.LaunchWithSideloadAsync(
-                        game, dlls, CaptureOutputDir, DeferCapture, TriggerKey);
+                        game, dlls, CaptureOutputDir, deferCapture: true, TriggerKey);
                     _log.Log($"  PID {proc.Id} started");
                     foreach (var (dest, bak) in copied)
                         _log.Log($"  staged: {dest}  backup={bak ?? "none"}");
@@ -365,7 +362,7 @@ public partial class MainViewModel : ObservableObject
                         SetStatus("No launcher ID — falling back to Standard deployment.");
                         var deployDir2 = Path.GetDirectoryName(game.ExecutablePath)!;
                         var (fbProc, fbCopied) = await _launcher.LaunchWithSideloadAsync(
-                            game, dlls, CaptureOutputDir, DeferCapture, TriggerKey);
+                            game, dlls, CaptureOutputDir, deferCapture: true, TriggerKey);
                         _log.Log($"  PID {fbProc.Id} started (fallback)");
                         SetStatus($"{game.Name} launched (Standard fallback) — {fbCopied.Count} DLL(s) deployed.");
                         process = fbProc;
@@ -384,7 +381,7 @@ public partial class MainViewModel : ObservableObject
                     {
                         var injDir = Path.GetDirectoryName(game.ExecutablePath)!;
                         var (injProc, injCopied) = await _launcher.LaunchViaLauncherAsync(
-                            game, dlls, CaptureOutputDir, DeferCapture, TriggerKey,
+                            game, dlls, CaptureOutputDir, deferCapture: true, TriggerKey,
                             new Progress<string>(SetStatus));
                         _log.Log($"  PID {injProc.Id} attached via launcher");
                         foreach (var (dest, bak) in injCopied)
@@ -410,7 +407,7 @@ public partial class MainViewModel : ObservableObject
                     break;
             }
 
-            if (DeferCapture && process != null)
+            if (process != null)
                 SwitchToCaptureTab(game.Name, process, TriggerKey);
         }
         catch (Exception ex)

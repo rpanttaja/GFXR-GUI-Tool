@@ -18,6 +18,7 @@ public partial class CaptureViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(TriggerButtonText))]
     [NotifyPropertyChangedFor(nameof(StatusIndicatorText))]
     [NotifyPropertyChangedFor(nameof(StatusIndicatorColor))]
+    [NotifyPropertyChangedFor(nameof(TriggerKeyHint))]
     [NotifyPropertyChangedFor(nameof(CaptureStatusText))]
     [NotifyPropertyChangedFor(nameof(CaptureStatusColor))]
     private bool _isCapturing;
@@ -36,6 +37,7 @@ public partial class CaptureViewModel : ObservableObject
 
     public string StatusIndicatorText  => IsCapturing ? "● CAPTURING" : "● STANDBY";
     public string StatusIndicatorColor => IsCapturing ? "#F44747"     : "#858585";
+    public string TriggerKeyHint       => IsCapturing ? $"press {TriggerKey} to stop" : $"press {TriggerKey} to capture";
 
     // Larger, prominent status shown in the middle of the trigger tab
     public string CaptureStatusText    => IsCapturing ? "CAPTURE IN PROGRESS" : "READY";

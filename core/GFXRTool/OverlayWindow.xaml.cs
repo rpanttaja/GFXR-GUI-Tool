@@ -15,7 +15,7 @@ public partial class OverlayWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        Left = SystemParameters.WorkArea.Right - Width  - 12;
+        Left = SystemParameters.WorkArea.Right - ActualWidth - 12;
         Top  = SystemParameters.WorkArea.Top   + 12;
     }
 
