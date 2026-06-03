@@ -16,8 +16,9 @@ public partial class MainViewModel : ObservableObject
     private readonly System32Service      _sys32     = new();
     private readonly LogService           _log       = App.StartupLog;
 
-    public ObservableCollection<Game>    Games { get; } = new();
-    public ObservableCollection<GfxrDll> Dlls  { get; } = new();
+    public ObservableCollection<Game>    Games  { get; } = new();
+    public ObservableCollection<GfxrDll> Dlls   { get; } = new();
+    public ReplayViewModel               Replay { get; } = new();
 
     // ── Launch mode ───────────────────────────────────────────────────────────
 
@@ -413,9 +414,9 @@ public partial class MainViewModel : ObservableObject
     private static void CleanupDlls(IReadOnlyList<(string Dest, string? Backup)> copied) =>
         GameLauncherService.CleanupStagedDlls(copied);
 
-    private static void SpawnOverlay(string gameName, System.Diagnostics.Process process, string triggerKey)
+    private void SpawnOverlay(string gameName, System.Diagnostics.Process process, string triggerKey)
     {
-        var vm      = new CaptureViewModel(gameName, string.Empty, triggerKey, process);
+        var vm      = new CaptureViewModel(gameName, CaptureOutputDir, triggerKey, process);
         var overlay = new OverlayWindow(vm);
         overlay.Show();
         vm.RequestClose = () => overlay.Close();

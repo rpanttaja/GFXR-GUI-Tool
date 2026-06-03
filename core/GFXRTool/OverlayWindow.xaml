@@ -11,14 +11,12 @@
         MinWidth="160"
         Height="68">
 
-    <!-- Outer border — drag handle (mouse-down on the border itself moves the window) -->
+    <!-- Outer border — static, never grabs focus -->
     <Border x:Name="DragHandle"
             Background="#D01A1A1A"
             BorderBrush="{Binding StatusIndicatorColor}"
             BorderThickness="1"
             CornerRadius="6"
-            MouseLeftButtonDown="OnDragHandleMouseDown"
-            Cursor="SizeAll"
             Padding="12,8">
         <StackPanel>
 
@@ -37,14 +35,13 @@
                            VerticalAlignment="Center"/>
             </StackPanel>
 
-            <!-- Trigger button — must stop mouse-down from bubbling to the drag handler -->
+            <!-- Trigger button -->
             <Button Content="{Binding TriggerButtonText}"
                     Command="{Binding TriggerCaptureCommand}"
                     FontSize="10" FontWeight="SemiBold"
                     FontFamily="Segoe UI"
                     Padding="10,4"
-                    Cursor="Hand"
-                    MouseLeftButtonDown="OnButtonMouseDown">
+                    Cursor="Hand">
                 <Button.Style>
                     <Style TargetType="Button">
                         <Setter Property="Foreground"      Value="White"/>

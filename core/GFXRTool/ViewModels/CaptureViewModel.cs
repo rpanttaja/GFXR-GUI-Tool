@@ -70,6 +70,14 @@ public partial class CaptureViewModel : ObservableObject
         if (!NativeMethods.TriggerKeyVk.TryGetValue(TriggerKey, out var vk))
             vk = 0x7B; // fallback F12
 
+        // Bring the game window to the foreground so SendInput lands on it.
+        var gameHwnd = _process.MainWindowHandle;
+        if (gameHwnd != IntPtr.Zero)
+        {
+            NativeMethods.SetForegroundWindow(gameHwnd);
+            await Task.Delay(80); // let the window actually receive focus
+        }
+
         var size = Marshal.SizeOf<INPUT>();
 
         NativeMethods.SendInput(1, [new INPUT

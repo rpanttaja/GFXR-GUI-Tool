@@ -291,6 +291,120 @@
                 </Grid>
             </TabItem>
 
+            <!-- Tab 1: Replay -->
+            <TabItem Header="Replay">
+                <Grid Margin="12,10,12,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="300"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: capture file + replay exe -->
+                    <GroupBox Grid.Column="0" Header="Capture File">
+                        <StackPanel>
+
+                            <TextBlock Text="GFXR Capture (.gfxr)"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DimTextBrush}"
+                                       Margin="0,0,0,5"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding Replay.CaptureFilePath, UpdateSourceTrigger=PropertyChanged}"
+                                         VerticalContentAlignment="Center"
+                                         Height="26"/>
+                                <Button Grid.Column="2"
+                                        Content="Browse..."
+                                        Style="{StaticResource SecondaryBtn}"
+                                        Command="{Binding Replay.BrowseCaptureFileCommand}"
+                                        Padding="8,4"/>
+                            </Grid>
+
+                            <Separator Margin="0,12,0,10" Background="{StaticResource BorderBrush}"/>
+
+                            <TextBlock Text="gfxrecon-replay.exe"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DimTextBrush}"
+                                       Margin="0,0,0,5"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding Replay.ReplayExePath, UpdateSourceTrigger=PropertyChanged}"
+                                         VerticalContentAlignment="Center"
+                                         Height="26"/>
+                                <Button Grid.Column="2"
+                                        Content="Browse..."
+                                        Style="{StaticResource SecondaryBtn}"
+                                        Command="{Binding Replay.BrowseReplayExeCommand}"
+                                        Padding="8,4"/>
+                            </Grid>
+
+                            <Separator Margin="0,12,0,10" Background="{StaticResource BorderBrush}"/>
+
+                            <TextBlock Text="Extra arguments  (optional)"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DimTextBrush}"
+                                       Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding Replay.ExtraArgs, UpdateSourceTrigger=PropertyChanged}"
+                                     VerticalContentAlignment="Center"
+                                     Height="26"/>
+
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                                  Background="{StaticResource BorderBrush}"/>
+
+                    <!-- Right: status + replay button -->
+                    <GroupBox Grid.Column="2" Header="Replay">
+                        <StackPanel>
+
+                            <Border CornerRadius="4" Padding="10,14" Margin="0,0,0,12">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#1A2A1A"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Replay.IsReplaying}" Value="True">
+                                                <Setter Property="Background" Value="#0F1A28"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding Replay.StatusMessage}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DimTextBrush}"/>
+                            </Border>
+
+                            <ProgressBar IsIndeterminate="True" Height="3"
+                                         Foreground="{StaticResource AccentBrush}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Margin="0,0,0,12"
+                                         Visibility="{Binding Replay.IsReplaying, Converter={StaticResource BoolToVis}}"/>
+
+                            <Button Content="Start Replay"
+                                    Style="{StaticResource PrimaryBtn}"
+                                    Command="{Binding Replay.StartReplayCommand}"
+                                    IsEnabled="{Binding Replay.IsReplaying, Converter={StaticResource InverseBool}, FallbackValue=True}"
+                                    FontSize="13" FontWeight="SemiBold"
+                                    Padding="0,12"
+                                    HorizontalAlignment="Stretch"/>
+
+                        </StackPanel>
+                    </GroupBox>
+                </Grid>
+            </TabItem>
+
         </TabControl>
 
         <!-- ── Launch bar ─────────────────────────────────────────────── -->
