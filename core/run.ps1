@@ -1,107 +1,83 @@
 # Bootstrap script for GFXR Capture Tool
-# Downloads the latest pre-built release from GitHub and launches it.
-# No local compilation — avoids all build-related errors.
+# Builds and launches the tool. No network calls, no auto-update.
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot  = Split-Path -Parent $ScriptDir
 
 function Write-Step([string]$msg) { Write-Host "`n>> $msg" -ForegroundColor Cyan }
 function Write-OK([string]$msg)   { Write-Host "   OK: $msg" -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "   !! $msg" -ForegroundColor Yellow }
 
-$Repo        = "rpanttaja/GFXR-GUI-Tool"
-$ApiUrl      = "https://api.github.com/repos/$Repo/releases/latest"
-$InstallDir  = Join-Path $RepoRoot "app"
-$VersionFile = Join-Path $InstallDir "version.txt"
-$ExePath     = Join-Path $InstallDir "GFXRTool.exe"
+# ── 1. Find .NET SDK ──────────────────────────────────────────────────────────
 
-# ── 1. Check for updates ──────────────────────────────────────────────────────
+$requiredMajor  = 8
+$localDotnetDir = Join-Path $env:LOCALAPPDATA "Microsoft\dotnet"
+$localDotnetExe = Join-Path $localDotnetDir "dotnet.exe"
 
-Write-Step "Checking for latest release..."
-
-$release  = $null
-$latest   = $null
-$zipAsset = $null
-
-try {
-    $headers = @{ "User-Agent" = "GFXRTool-Bootstrap" }
-    $release  = Invoke-RestMethod -Uri $ApiUrl -Headers $headers -ErrorAction Stop
-    $latest   = $release.tag_name
-    $zipAsset = $release.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
-    Write-OK "Latest release: $latest"
-} catch {
-    Write-Warn "Could not reach GitHub ($($_.Exception.Message))."
-}
-
-$current = if (Test-Path $VersionFile) { (Get-Content $VersionFile -Raw).Trim() } else { "" }
-
-$needsUpdate = $zipAsset -and ($current -ne $latest -or -not (Test-Path $ExePath))
-
-# ── 2. Download and install if needed ─────────────────────────────────────────
-
-if ($needsUpdate) {
-    Write-Step "$(if ($current) { "Updating $current -> $latest" } else { "Installing $latest" })..."
-
-    $tempZip = Join-Path $env:TEMP "GFXRTool-$latest.zip"
-    $tempDir = Join-Path $env:TEMP "GFXRTool-extract-$latest"
-
-    try {
-        Write-OK "Downloading..."
-        Invoke-WebRequest -Uri $zipAsset.browser_download_url `
-                          -OutFile $tempZip -UseBasicParsing
-
-        if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-        Expand-Archive -Path $tempZip -DestinationPath $tempDir
-
-        # Unwrap single top-level folder if present
-        $items = Get-ChildItem $tempDir
-        $src   = if ($items.Count -eq 1 -and $items[0].PSIsContainer) { $items[0].FullName } else { $tempDir }
-
-        # Preserve Layers across updates
-        $layersDst = Join-Path $InstallDir "Layers"
-        $layersBak = Join-Path $env:TEMP "GFXRTool-Layers-bak"
-        if (Test-Path $layersDst) {
-            if (Test-Path $layersBak) { Remove-Item $layersBak -Recurse -Force }
-            Copy-Item $layersDst $layersBak -Recurse -Force
-        }
-
-        # Install — replace everything
-        if (Test-Path $InstallDir) { Remove-Item $InstallDir -Recurse -Force }
-        New-Item -ItemType Directory -Force $InstallDir | Out-Null
-        Copy-Item "$src\*" $InstallDir -Recurse -Force
-
-        # Restore Layers
-        if (Test-Path $layersBak) {
-            Copy-Item $layersBak $layersDst -Recurse -Force
-            Remove-Item $layersBak -Recurse -Force -ErrorAction SilentlyContinue
-        }
-
-        $latest | Set-Content $VersionFile
-        Write-OK "Installed to: $InstallDir"
-    } catch {
-        Write-Warn "Update failed: $($_.Exception.Message)"
-        Write-Warn "Will try to launch existing version if available."
-    } finally {
-        Remove-Item $tempZip -Force -ErrorAction SilentlyContinue
-        Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+function Get-DotnetExe {
+    $candidates = @(
+        (Get-Command dotnet -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+        "$env:ProgramFiles\dotnet\dotnet.exe",
+        "${env:ProgramFiles(x86)}\dotnet\dotnet.exe",
+        $localDotnetExe
+    )
+    foreach ($c in $candidates) {
+        if (-not $c -or -not (Test-Path $c -ErrorAction SilentlyContinue)) { continue }
+        try {
+            $rawVer = (& $c --version 2>$null) -replace "-.*", ""
+            if ([version]$rawVer -ge [version]"$requiredMajor.0") { return $c }
+        } catch { }
     }
-} elseif (-not $needsUpdate -and $latest) {
-    Write-OK "Already up to date ($latest)."
-} else {
-    Write-Warn "Skipping update check (offline or no release found)."
+    return $null
 }
 
-# ── 3. Launch ─────────────────────────────────────────────────────────────────
+Write-Step "Checking for .NET $requiredMajor SDK..."
+$dotnet = Get-DotnetExe
+
+if (-not $dotnet) {
+    Write-Warn ".NET $requiredMajor SDK not found. Downloading installer..."
+    $installPs1 = Join-Path $env:TEMP "dotnet-install.ps1"
+    Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $installPs1 -UseBasicParsing
+    & $installPs1 -Channel "$requiredMajor.0" -InstallDir $localDotnetDir
+    $env:PATH = "$localDotnetDir;$env:PATH"
+    $dotnet = $localDotnetExe
+    Write-OK ".NET $requiredMajor installed."
+} else {
+    Write-OK "Found .NET $(& $dotnet --version 2>$null) at $dotnet"
+}
+
+# ── 2. Clean bin/obj ──────────────────────────────────────────────────────────
+# Wipe before every build so stale compiler-generated files never cause errors.
+
+foreach ($proj in @("GFXRTool", "GFXRWatcher")) {
+    foreach ($dir in @("bin", "obj")) {
+        $p = Join-Path $ScriptDir "$proj\$dir"
+        if (Test-Path $p) { Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+# ── 3. Restore + Build ────────────────────────────────────────────────────────
+
+$csproj = Join-Path $ScriptDir "GFXRTool\GFXRTool.csproj"
+if (-not (Test-Path $csproj)) { Write-Error "Project not found: $csproj"; exit 1 }
+
+Write-Step "Restoring NuGet packages..."
+& $dotnet restore $csproj --nologo
+if ($LASTEXITCODE -ne 0) { Write-Error "Restore failed."; exit 1 }
+Write-OK "Packages restored."
+
+Write-Step "Building (Release)..."
+& $dotnet build $csproj -c Release --no-restore --nologo
+if ($LASTEXITCODE -ne 0) { Write-Error "Build failed."; exit 1 }
+Write-OK "Build succeeded."
+
+# ── 4. Launch ─────────────────────────────────────────────────────────────────
+
+$exe = Get-ChildItem -Path (Join-Path $ScriptDir "GFXRTool\bin\Release") `
+    -Filter "GFXRTool.exe" -Recurse -ErrorAction SilentlyContinue |
+    Select-Object -First 1 -ExpandProperty FullName
+
+if (-not $exe) { Write-Error "GFXRTool.exe not found — build may have failed."; exit 1 }
 
 Write-Step "Launching GFXR Capture Tool..."
-
-if (-not (Test-Path $ExePath)) {
-    Write-Host ""
-    Write-Host "ERROR: GFXRTool.exe not found at: $ExePath" -ForegroundColor Red
-    Write-Host "No release has been downloaded yet and no cached version exists." -ForegroundColor Yellow
-    Write-Host "Check your internet connection and try again." -ForegroundColor Yellow
-    exit 1
-}
-
-Start-Process -FilePath $ExePath -WorkingDirectory $InstallDir
+Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe)
 Write-OK "Launched."
