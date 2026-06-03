@@ -9,14 +9,16 @@ public partial class CaptureViewModel : ObservableObject
 {
     private readonly System.Diagnostics.Process _process;
 
-    public string  GameName        { get; }
+    public string  GameName         { get; }
     public string  CaptureOutputDir { get; }
-    public Action? RequestClose    { get; set; }
+    public string  TriggerKey       { get; }
+    public Action? RequestClose     { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TriggerButtonText))]
     [NotifyPropertyChangedFor(nameof(StatusIndicatorText))]
     [NotifyPropertyChangedFor(nameof(StatusIndicatorColor))]
+    [NotifyPropertyChangedFor(nameof(CaptureStatusText))]
     private bool _isCapturing;
 
     [ObservableProperty]
@@ -26,20 +28,29 @@ public partial class CaptureViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = "Ready to capture.";
 
-    public string TriggerButtonText    => IsCapturing ? "■   Stop Capture"  : "▶   Trigger Capture";
-    public string StatusIndicatorText  => IsCapturing ? "● Capturing"       : "● Standby";
-    public string StatusIndicatorColor => IsCapturing ? "#F44747"           : "#858585";
+    public string TriggerButtonText =>
+        IsCapturing
+            ? $"■   Stop Capture  ({TriggerKey})"
+            : $"▶   Start Capture  ({TriggerKey})";
+
+    public string StatusIndicatorText  => IsCapturing ? "● CAPTURING" : "● STANDBY";
+    public string StatusIndicatorColor => IsCapturing ? "#F44747"     : "#858585";
+
+    // Larger, prominent status shown in the middle of the trigger tab
+    public string CaptureStatusText    => IsCapturing ? "CAPTURE IN PROGRESS" : "READY";
+    public string CaptureStatusColor   => IsCapturing ? "#F44747"              : "#4EC9B0";
 
     public CaptureViewModel(string gameName, string captureOutputDir,
+                            string triggerKey,
                             System.Diagnostics.Process process)
     {
         GameName         = gameName;
+        TriggerKey       = triggerKey;
         CaptureOutputDir = string.IsNullOrWhiteSpace(captureOutputDir)
                            ? "Default (game directory)"
                            : captureOutputDir;
         _process         = process;
 
-        // Close the window automatically when the game exits.
         _ = _process.WaitForExitAsync().ContinueWith(_ =>
             Application.Current.Dispatcher.InvokeAsync(() =>
             {
@@ -53,13 +64,15 @@ public partial class CaptureViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanTrigger))]
     private async Task TriggerCaptureAsync()
     {
-        const ushort VK_F12 = 0x7B;
+        if (!NativeMethods.TriggerKeyVk.TryGetValue(TriggerKey, out var vk))
+            vk = 0x7B; // fallback F12
+
         var size = Marshal.SizeOf<INPUT>();
 
         NativeMethods.SendInput(1, [new INPUT
         {
             Type     = NativeMethods.INPUT_KEYBOARD,
-            Keyboard = new KEYBDINPUT { Vk = VK_F12 }
+            Keyboard = new KEYBDINPUT { Vk = vk }
         }], size);
 
         await Task.Delay(80);
@@ -67,11 +80,11 @@ public partial class CaptureViewModel : ObservableObject
         NativeMethods.SendInput(1, [new INPUT
         {
             Type     = NativeMethods.INPUT_KEYBOARD,
-            Keyboard = new KEYBDINPUT { Vk = VK_F12, Flags = NativeMethods.KEYEVENTF_KEYUP }
+            Keyboard = new KEYBDINPUT { Vk = vk, Flags = NativeMethods.KEYEVENTF_KEYUP }
         }], size);
 
         IsCapturing   = !IsCapturing;
-        StatusMessage = IsCapturing ? "Capturing..." : "Capture stopped.";
+        StatusMessage = IsCapturing ? $"Capturing...  ({TriggerKey} to stop)" : "Capture stopped.";
     }
 
     private bool CanTrigger() => !GameExited;

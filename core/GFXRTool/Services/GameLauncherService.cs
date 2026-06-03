@@ -11,14 +11,15 @@ public class GameLauncherService
     // Each entry: (deployed path, backup path or null if nothing was displaced)
     public async Task<(Process Process, IReadOnlyList<(string Dest, string? Backup)> CopiedPaths)>
         LaunchWithSideloadAsync(Game game, IReadOnlyList<GfxrDll> dlls,
-                                string? captureOutputDir = null, bool deferCapture = false)
+                                string? captureOutputDir = null, bool deferCapture = false,
+                                string triggerKey = "F12")
     {
         if (dlls.Count == 0) throw new InvalidOperationException("No DLLs to sideload.");
 
         var gameDir = Path.GetDirectoryName(game.ExecutablePath)!;
         var copied  = new List<(string Dest, string? Backup)>(await StageDllsAsync(gameDir, dlls));
 
-        WriteSettingsFile(gameDir, captureOutputDir, deferCapture);
+        WriteSettingsFile(gameDir, captureOutputDir, deferCapture, triggerKey);
         // Include settings file in copied list so it's auto-cleaned on exit.
         copied.Add((Path.Combine(gameDir, SettingsFileName), null));
 
@@ -38,6 +39,7 @@ public class GameLauncherService
     public async Task<(Process Process, IReadOnlyList<(string Dest, string? Backup)> CopiedPaths)>
         LaunchViaLauncherAsync(Game game, IReadOnlyList<GfxrDll> dlls,
                                string? captureOutputDir = null, bool deferCapture = false,
+                               string triggerKey = "F12",
                                IProgress<string>? progress = null,
                                CancellationToken ct = default)
     {
@@ -49,11 +51,9 @@ public class GameLauncherService
         var gameDir         = Path.GetFullPath(Path.GetDirectoryName(game.ExecutablePath)!);
         var launcherExeName = Path.GetFileNameWithoutExtension(game.ExecutablePath);
 
-        // Stage to the launcher dir first — covers games where the exe is co-located.
-        // Settings file is added to the copied list so it's auto-cleaned on exit.
         progress?.Report($"Staging {dlls.Count} layer(s) into {gameDir}...");
         var copied = new List<(string Dest, string? Backup)>(await StageDllsAsync(gameDir, dlls));
-        WriteSettingsFile(gameDir, captureOutputDir, deferCapture);
+        WriteSettingsFile(gameDir, captureOutputDir, deferCapture, triggerKey);
         copied.Add((Path.Combine(gameDir, SettingsFileName), null));
 
         try
@@ -79,7 +79,7 @@ public class GameLauncherService
                     progress?.Report($"Game exe is in subdirectory — re-staging to: {actualExeDir}");
                     var extraCopied = await StageDllsAsync(actualExeDir, dlls);
                     copied.AddRange(extraCopied);
-                    WriteSettingsFile(actualExeDir, captureOutputDir, deferCapture);
+                    WriteSettingsFile(actualExeDir, captureOutputDir, deferCapture, triggerKey);
                     copied.Add((Path.Combine(actualExeDir, SettingsFileName), null));
                 }
             }
@@ -100,27 +100,27 @@ public class GameLauncherService
     // time. This is the only reliable way to pass config when the game is spawned
     // by Steam/Epic (the game inherits their environment, not ours).
 
-    private static void WriteSettingsFile(string gameDir, string? captureOutputDir, bool deferCapture)
+    private static void WriteSettingsFile(string gameDir, string? captureOutputDir,
+                                           bool deferCapture, string triggerKey = "F12")
     {
+        // Resolve the output directory — default to the chosen dir, never the game dir.
+        var outDir = string.IsNullOrWhiteSpace(captureOutputDir) ? gameDir : captureOutputDir;
+        Directory.CreateDirectory(outDir);
+
         var settings = new Dictionary<string, object>
         {
-            // Always enable capture — GFXR won't write anything without this.
-            ["capture_file"] = Path.Combine(
-                string.IsNullOrWhiteSpace(captureOutputDir) ? gameDir : captureOutputDir,
-                "gfxrecon_capture.gfxr")
+            ["capture_file"]     = System.IO.Path.Combine(outDir, "gfxrecon_capture.gfxr"),
+            ["capture_file_dir"] = outDir,
         };
 
-        if (!string.IsNullOrWhiteSpace(captureOutputDir))
-            settings["capture_file_dir"] = captureOutputDir;
-
         if (deferCapture)
-            settings["capture_trigger"] = "F12";
+            settings["capture_trigger"] = triggerKey;
 
         var json = JsonSerializer.Serialize(
             new Dictionary<string, object> { ["lunarg_gfxreconstruct"] = settings },
             new JsonSerializerOptions { WriteIndented = true });
 
-        File.WriteAllText(Path.Combine(gameDir, SettingsFileName), json);
+        File.WriteAllText(System.IO.Path.Combine(gameDir, SettingsFileName), json);
     }
 
     internal static void DeleteSettingsFile(string gameDir)

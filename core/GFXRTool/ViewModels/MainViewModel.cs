@@ -75,6 +75,16 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _captureOutputDir = string.Empty;
 
+    // Trigger key used for deferred capture — shown in button label and written to settings file.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TriggerKeyLabel))]
+    private string _triggerKey = "F12";
+
+    public string TriggerKeyLabel => $"F{TriggerKey[1..]}"; // "F12" → "F12"
+
+    public static IReadOnlyList<string> AvailableTriggerKeys { get; } =
+        Enumerable.Range(1, 12).Select(i => $"F{i}").ToList();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveCapture))]
     private CaptureViewModel? _activeCapture;
@@ -133,6 +143,12 @@ public partial class MainViewModel : ObservableObject
 
     private void LoadDefaultDlls()
     {
+        // Set default capture output dir
+        var defaultCaptureDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default_gfxr_location");
+        Directory.CreateDirectory(defaultCaptureDir);
+        CaptureOutputDir = defaultCaptureDir;
+        _log.Log($"Default capture dir: {defaultCaptureDir}");
+
         var layersDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Layers");
 
         _log.Log($"Tool started. Base: {AppDomain.CurrentDomain.BaseDirectory}");
@@ -361,7 +377,7 @@ public partial class MainViewModel : ObservableObject
         _log.Log($"--- Launch ---  game={game.Name}  mode={LaunchMode}  id={game.LauncherId ?? "—"}");
         _log.Log($"  exe={game.ExecutablePath}");
         _log.Log($"  dlls=[{string.Join(", ", dlls.Select(d => d.Name))}]");
-        _log.Log($"  defer={DeferCapture}  outputDir={CaptureOutputDir}");
+        _log.Log($"  defer={DeferCapture}  triggerKey={TriggerKey}  outputDir={CaptureOutputDir}");
 
         SetStatus($"Launching {game.Name}...");
 
@@ -375,7 +391,7 @@ public partial class MainViewModel : ObservableObject
                     var deployDir = Path.GetDirectoryName(game.ExecutablePath)!;
                     SetStatus($"Deploying {dlls.Count} layer(s) to: {deployDir}");
                     var (proc, copied) = await _launcher.LaunchWithSideloadAsync(
-                        game, dlls, CaptureOutputDir, DeferCapture);
+                        game, dlls, CaptureOutputDir, DeferCapture, TriggerKey);
                     _log.Log($"  PID {proc.Id} started");
                     foreach (var (dest, bak) in copied)
                         _log.Log($"  staged: {dest}  backup={bak ?? "none"}");
@@ -402,7 +418,7 @@ public partial class MainViewModel : ObservableObject
                         SetStatus("No launcher ID — falling back to Standard deployment.");
                         var deployDir2 = Path.GetDirectoryName(game.ExecutablePath)!;
                         var (fbProc, fbCopied) = await _launcher.LaunchWithSideloadAsync(
-                            game, dlls, CaptureOutputDir, DeferCapture);
+                            game, dlls, CaptureOutputDir, DeferCapture, TriggerKey);
                         _log.Log($"  PID {fbProc.Id} started (fallback)");
                         SetStatus($"{game.Name} launched (Standard fallback) — {fbCopied.Count} DLL(s) deployed.");
                         process = fbProc;
@@ -421,7 +437,7 @@ public partial class MainViewModel : ObservableObject
                     {
                         var injDir = Path.GetDirectoryName(game.ExecutablePath)!;
                         var (injProc, injCopied) = await _launcher.LaunchViaLauncherAsync(
-                            game, dlls, CaptureOutputDir, DeferCapture,
+                            game, dlls, CaptureOutputDir, DeferCapture, TriggerKey,
                             new Progress<string>(SetStatus));
                         _log.Log($"  PID {injProc.Id} attached via launcher");
                         foreach (var (dest, bak) in injCopied)
@@ -448,7 +464,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             if (DeferCapture && process != null)
-                SwitchToCaptureTab(game.Name, process);
+                SwitchToCaptureTab(game.Name, process, TriggerKey);
         }
         catch (Exception ex)
         {
@@ -460,9 +476,9 @@ public partial class MainViewModel : ObservableObject
     private static void CleanupDlls(IReadOnlyList<(string Dest, string? Backup)> copied) =>
         GameLauncherService.CleanupStagedDlls(copied);
 
-    private void SwitchToCaptureTab(string gameName, System.Diagnostics.Process process)
+    private void SwitchToCaptureTab(string gameName, System.Diagnostics.Process process, string triggerKey)
     {
-        var vm      = new CaptureViewModel(gameName, CaptureOutputDir, process);
+        var vm      = new CaptureViewModel(gameName, CaptureOutputDir, triggerKey, process);
         var overlay = new OverlayWindow(vm);
         overlay.Show();
 
