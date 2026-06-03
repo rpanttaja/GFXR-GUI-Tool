@@ -19,5 +19,12 @@ public partial class OverlayWindow : Window
         Top  = SystemParameters.WorkArea.Top   + 12;
     }
 
-    private void OnMouseDown(object sender, MouseButtonEventArgs e) => DragMove();
+    private void OnDragHandleMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed)
+            DragMove();
+    }
+
+    // Stop the mouse-down from bubbling up to the drag handler when the button is clicked.
+    private void OnButtonMouseDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
 }

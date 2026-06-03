@@ -67,21 +67,14 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _captureOutputDir = string.Empty;
 
-    // Trigger key used for deferred capture — shown in button label and written to settings file.
     [ObservableProperty]
     private string _triggerKey = "F12";
 
+    [ObservableProperty]
+    private bool _showOverlay = true;
+
     public static IReadOnlyList<string> AvailableTriggerKeys { get; } =
         Enumerable.Range(1, 12).Select(i => $"F{i}").ToList();
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasActiveCapture))]
-    private CaptureViewModel? _activeCapture;
-
-    public bool HasActiveCapture => ActiveCapture != null;
-
-    [ObservableProperty]
-    private int _activeTabIndex;
 
     [RelayCommand]
     private void SelectCaptureOutputDir()
@@ -407,8 +400,8 @@ public partial class MainViewModel : ObservableObject
                     break;
             }
 
-            if (process != null)
-                SwitchToCaptureTab(game.Name, process, TriggerKey);
+            if (process != null && ShowOverlay)
+                SpawnOverlay(game.Name, process, TriggerKey);
         }
         catch (Exception ex)
         {
@@ -420,20 +413,12 @@ public partial class MainViewModel : ObservableObject
     private static void CleanupDlls(IReadOnlyList<(string Dest, string? Backup)> copied) =>
         GameLauncherService.CleanupStagedDlls(copied);
 
-    private void SwitchToCaptureTab(string gameName, System.Diagnostics.Process process, string triggerKey)
+    private static void SpawnOverlay(string gameName, System.Diagnostics.Process process, string triggerKey)
     {
-        var vm      = new CaptureViewModel(gameName, CaptureOutputDir, triggerKey, process);
+        var vm      = new CaptureViewModel(gameName, string.Empty, triggerKey, process);
         var overlay = new OverlayWindow(vm);
         overlay.Show();
-
-        vm.RequestClose = () =>
-        {
-            overlay.Close();
-            ActiveCapture  = null;
-            ActiveTabIndex = 0;
-        };
-        ActiveCapture  = vm;
-        ActiveTabIndex = 1;
+        vm.RequestClose = () => overlay.Close();
     }
 
     private static void MonitorGame(System.Diagnostics.Process process, Action? onExit)

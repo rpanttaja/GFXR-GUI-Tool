@@ -33,7 +33,7 @@
         </Border>
 
         <!-- ── Main content ───────────────────────────────────────────── -->
-        <TabControl Grid.Row="1" SelectedIndex="{Binding ActiveTabIndex}">
+        <TabControl Grid.Row="1">
 
             <!-- Tab 0: Capture setup -->
             <TabItem Header="Capture">
@@ -269,7 +269,7 @@
                                         Padding="8,4"/>
                             </Grid>
 
-                            <!-- Trigger key selector — always visible -->
+                            <!-- Trigger key + overlay checkbox -->
                             <StackPanel Orientation="Horizontal"
                                         Margin="0,10,0,0">
                                 <TextBlock Text="Trigger key:"
@@ -278,98 +278,16 @@
                                 <ComboBox ItemsSource="{Binding AvailableTriggerKeys}"
                                           SelectedItem="{Binding TriggerKey}"
                                           Width="72"/>
+                                <CheckBox Content="Show overlay"
+                                          IsChecked="{Binding ShowOverlay}"
+                                          VerticalAlignment="Center"
+                                          Margin="16,0,0,0"
+                                          FontSize="11"
+                                          ToolTip="Show a floating capture status/trigger overlay while the game is running"/>
                             </StackPanel>
 
                         </StackPanel>
                     </GroupBox>
-                </Grid>
-            </TabItem>
-
-            <!-- Tab 1: Capture trigger (active only while a game is running) -->
-            <TabItem Header="Trigger" IsEnabled="{Binding HasActiveCapture}">
-                <Grid Margin="24,20">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>   <!-- game name + live pill -->
-                        <RowDefinition Height="20"/>
-                        <RowDefinition Height="Auto"/>   <!-- big status banner -->
-                        <RowDefinition Height="20"/>
-                        <RowDefinition Height="Auto"/>   <!-- trigger button -->
-                        <RowDefinition Height="16"/>
-                        <RowDefinition Height="Auto"/>   <!-- output dir -->
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>   <!-- status message -->
-                    </Grid.RowDefinitions>
-
-                    <!-- Game name + live status pill -->
-                    <Grid Grid.Row="0">
-                        <TextBlock FontSize="16" FontWeight="SemiBold"
-                                   Text="{Binding ActiveCapture.GameName, FallbackValue='—'}"/>
-                        <Border HorizontalAlignment="Right" VerticalAlignment="Center"
-                                CornerRadius="10" Padding="10,3">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Background" Value="#2A2A2A"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ActiveCapture.IsCapturing}" Value="True">
-                                            <Setter Property="Background" Value="#4A1A1A"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <TextBlock Text="{Binding ActiveCapture.StatusIndicatorText}"
-                                       Foreground="{Binding ActiveCapture.StatusIndicatorColor}"
-                                       FontSize="11" FontWeight="SemiBold"/>
-                        </Border>
-                    </Grid>
-
-                    <!-- Big status banner -->
-                    <Border Grid.Row="2" CornerRadius="6" Padding="0,18">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="#1A2A1A"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ActiveCapture.IsCapturing}" Value="True">
-                                        <Setter Property="Background" Value="#2A1A1A"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="{Binding ActiveCapture.CaptureStatusText}"
-                                   Foreground="{Binding ActiveCapture.CaptureStatusColor}"
-                                   FontSize="22" FontWeight="Bold"
-                                   HorizontalAlignment="Center"/>
-                    </Border>
-
-                    <!-- Trigger / Stop button -->
-                    <Button Grid.Row="4"
-                            Content="{Binding ActiveCapture.TriggerButtonText}"
-                            Command="{Binding ActiveCapture.TriggerCaptureCommand}"
-                            Style="{StaticResource PrimaryBtn}"
-                            FontSize="14" FontWeight="SemiBold"
-                            Padding="0,14"
-                            MaxWidth="320"
-                            HorizontalAlignment="Left"/>
-
-                    <!-- Output directory -->
-                    <StackPanel Grid.Row="6" Orientation="Horizontal">
-                        <TextBlock Text="Output: " FontSize="11"
-                                   Foreground="{StaticResource DimTextBrush}"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding ActiveCapture.CaptureOutputDir}"
-                                   FontSize="11"
-                                   TextTrimming="CharacterEllipsis"
-                                   MaxWidth="500"
-                                   ToolTip="{Binding ActiveCapture.CaptureOutputDir}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-
-                    <!-- Capture status message -->
-                    <TextBlock Grid.Row="8"
-                               Text="{Binding ActiveCapture.StatusMessage}"
-                               FontSize="11"
-                               Foreground="{StaticResource DimTextBrush}"
-                               VerticalAlignment="Bottom"
-                               Margin="0,0,0,8"/>
                 </Grid>
             </TabItem>
 

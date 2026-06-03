@@ -8,21 +8,22 @@
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         SizeToContent="Width"
-        Height="44">
+        MinWidth="160"
+        Height="68">
 
-    <Border Background="#D01A1A1A"
+    <!-- Outer border — drag handle (mouse-down on the border itself moves the window) -->
+    <Border x:Name="DragHandle"
+            Background="#D01A1A1A"
             BorderBrush="{Binding StatusIndicatorColor}"
             BorderThickness="1"
-            CornerRadius="5"
-            MouseLeftButtonDown="OnMouseDown"
-            Cursor="SizeAll">
-        <StackPanel Orientation="Vertical"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Margin="12,6">
-            <!-- Top row: GFXR label + status pill -->
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Center">
+            CornerRadius="6"
+            MouseLeftButtonDown="OnDragHandleMouseDown"
+            Cursor="SizeAll"
+            Padding="12,8">
+        <StackPanel>
+
+            <!-- Top row: GFXR label + status text -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
                 <TextBlock Text="GFXR"
                            Foreground="#707070"
                            FontSize="10" FontWeight="SemiBold"
@@ -35,13 +36,52 @@
                            FontFamily="Segoe UI"
                            VerticalAlignment="Center"/>
             </StackPanel>
-            <!-- Bottom row: key hint -->
-            <TextBlock Text="{Binding TriggerKeyHint}"
-                       Foreground="#505050"
-                       FontSize="9"
-                       FontFamily="Segoe UI"
-                       HorizontalAlignment="Center"
-                       Margin="0,2,0,0"/>
+
+            <!-- Trigger button — must stop mouse-down from bubbling to the drag handler -->
+            <Button Content="{Binding TriggerButtonText}"
+                    Command="{Binding TriggerCaptureCommand}"
+                    FontSize="10" FontWeight="SemiBold"
+                    FontFamily="Segoe UI"
+                    Padding="10,4"
+                    Cursor="Hand"
+                    MouseLeftButtonDown="OnButtonMouseDown">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Foreground"      Value="White"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bd"
+                                            CornerRadius="3"
+                                            Padding="{TemplateBinding Padding}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#007ACC"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCapturing}" Value="True">
+                                                        <Setter Property="Background" Value="#8B1A1A"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter Property="Opacity" Value="0.4"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Button.Style>
+            </Button>
+
         </StackPanel>
     </Border>
 
