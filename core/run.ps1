@@ -143,7 +143,18 @@ if (-not $dotnet) {
     Write-OK "Found .NET $ver at $dotnet"
 }
 
-# ── 2. Restore NuGet packages ─────────────────────────────────────────────────
+# ── 2. Clean stale build output ───────────────────────────────────────────────
+# Always wipe bin/ and obj/ before building. Prevents stale compiler-generated
+# files from causing CS8802 / duplicate-symbol errors after a source update.
+
+foreach ($proj in @("GFXRTool", "GFXRWatcher")) {
+    foreach ($dir in @("bin", "obj")) {
+        $p = Join-Path $ScriptDir "$proj\$dir"
+        if (Test-Path $p) { Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+# ── 3. Restore NuGet packages ─────────────────────────────────────────────────
 
 $csproj = Join-Path $ScriptDir "GFXRTool\GFXRTool.csproj"
 if (-not (Test-Path $csproj)) {
