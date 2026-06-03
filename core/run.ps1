@@ -47,13 +47,19 @@ if (-not $dotnet) {
 
 # ── 2. Clean bin/obj ──────────────────────────────────────────────────────────
 # Wipe before every build so stale compiler-generated files never cause errors.
+# Also remove nested project folders created by a previous broken Copy-Item
+# -Recurse (e.g. GFXRWatcher\GFXRWatcher\) and stale .github_etag files.
 
 foreach ($proj in @("GFXRTool", "GFXRWatcher")) {
     foreach ($dir in @("bin", "obj")) {
         $p = Join-Path $ScriptDir "$proj\$dir"
         if (Test-Path $p) { Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue }
     }
+    $nested = Join-Path $ScriptDir "$proj\$proj"
+    if (Test-Path $nested) { Remove-Item $nested -Recurse -Force -ErrorAction SilentlyContinue }
 }
+$etagFile = Join-Path (Split-Path -Parent $ScriptDir) ".github_etag"
+if (Test-Path $etagFile) { Remove-Item $etagFile -Force -ErrorAction SilentlyContinue }
 
 # ── 3. Restore + Build ────────────────────────────────────────────────────────
 
