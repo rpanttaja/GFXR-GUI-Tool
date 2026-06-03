@@ -7,7 +7,7 @@ function Write-Step([string]$msg) { Write-Host "`n>> $msg" -ForegroundColor Cyan
 function Write-OK([string]$msg)   { Write-Host "   OK: $msg" -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "   !! $msg" -ForegroundColor Yellow }
 
-# ── 1. Find .NET SDK ──────────────────────────────────────────────────────────
+# -- 1. Find .NET SDK ----------------------------------------------------------
 
 $requiredMajor  = 8
 $localDotnetDir = Join-Path $env:LOCALAPPDATA "Microsoft\dotnet"
@@ -45,7 +45,7 @@ if (-not $dotnet) {
     Write-OK "Found .NET $(& $dotnet --version 2>$null) at $dotnet"
 }
 
-# ── 2. Clean bin/obj ──────────────────────────────────────────────────────────
+# -- 2. Clean bin/obj ----------------------------------------------------------
 # Wipe before every build so stale compiler-generated files never cause errors.
 # Also remove nested project folders created by a previous broken Copy-Item
 # -Recurse (e.g. GFXRWatcher\GFXRWatcher\) and stale .github_etag files.
@@ -61,7 +61,7 @@ foreach ($proj in @("GFXRTool", "GFXRWatcher")) {
 $etagFile = Join-Path (Split-Path -Parent $ScriptDir) ".github_etag"
 if (Test-Path $etagFile) { Remove-Item $etagFile -Force -ErrorAction SilentlyContinue }
 
-# ── 3. Restore + Build ────────────────────────────────────────────────────────
+# -- 3. Restore + Build --------------------------------------------------------
 
 $csproj = Join-Path $ScriptDir "GFXRTool\GFXRTool.csproj"
 if (-not (Test-Path $csproj)) { Write-Error "Project not found: $csproj"; exit 1 }
@@ -76,13 +76,13 @@ Write-Step "Building (Release)..."
 if ($LASTEXITCODE -ne 0) { Write-Error "Build failed."; exit 1 }
 Write-OK "Build succeeded."
 
-# ── 4. Launch ─────────────────────────────────────────────────────────────────
+# -- 4. Launch -----------------------------------------------------------------
 
 $exe = Get-ChildItem -Path (Join-Path $ScriptDir "GFXRTool\bin\Release") `
     -Filter "GFXRTool.exe" -Recurse -ErrorAction SilentlyContinue |
     Select-Object -First 1 -ExpandProperty FullName
 
-if (-not $exe) { Write-Error "GFXRTool.exe not found — build may have failed."; exit 1 }
+if (-not $exe) { Write-Error "GFXRTool.exe not found - build may have failed."; exit 1 }
 
 Write-Step "Launching GFXR Capture Tool..."
 Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe)
