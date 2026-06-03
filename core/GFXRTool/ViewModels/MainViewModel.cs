@@ -65,17 +65,88 @@ public partial class MainViewModel : ObservableObject
 
     // ── Capture settings ──────────────────────────────────────────────────────
 
+    private const string EnvTrigger = "GFXRECON_CAPTURE_TRIGGER";
+    private const string EnvFileDir = "GFXRECON_CAPTURE_FILE_DIR";
+
     [ObservableProperty]
     private string _captureOutputDir = string.Empty;
+
+    partial void OnCaptureOutputDirChanged(string value)
+    {
+        var live = Environment.GetEnvironmentVariable(EnvFileDir, EnvironmentVariableTarget.User);
+        if (!string.IsNullOrEmpty(live) &&
+            !string.Equals(live, value, StringComparison.OrdinalIgnoreCase))
+        {
+            SetStatus("Output directory changed — click Apply and restart for the new location to take effect.");
+        }
+    }
 
     [ObservableProperty]
     private string _triggerKey = "F12";
 
     [ObservableProperty]
-    private bool _showOverlay = true;
+    private bool _useTrigger = false;
+
+    // Status of the live User env vars (read at startup and after Apply)
+    [ObservableProperty] private string _envStatusText  = string.Empty;
+    [ObservableProperty] private string _envStatusColor = "#858585";
+    [ObservableProperty] private bool   _envIsReady     = false;
 
     public static IReadOnlyList<string> AvailableTriggerKeys { get; } =
         Enumerable.Range(1, 12).Select(i => $"F{i}").ToList();
+
+    private void RefreshEnvStatus()
+    {
+        var trigger = Environment.GetEnvironmentVariable(EnvTrigger, EnvironmentVariableTarget.User);
+        var fileDir = Environment.GetEnvironmentVariable(EnvFileDir, EnvironmentVariableTarget.User);
+
+        if (!string.IsNullOrEmpty(trigger) && !string.IsNullOrEmpty(fileDir))
+        {
+            EnvStatusText  = $"Ready — trigger: {trigger}  |  output: {fileDir}";
+            EnvStatusColor = "#4EC9B0";
+            EnvIsReady     = true;
+        }
+        else if (!string.IsNullOrEmpty(trigger))
+        {
+            EnvStatusText  = $"Trigger key set ({trigger}) but output directory is not configured";
+            EnvStatusColor = "#CE9178";
+            EnvIsReady     = false;
+        }
+        else
+        {
+            EnvStatusText  = "Not configured — set key and output directory, then click Apply";
+            EnvStatusColor = "#F44747";
+            EnvIsReady     = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ApplyGfxrEnvVars()
+    {
+        if (string.IsNullOrWhiteSpace(CaptureOutputDir))
+        {
+            MessageBox.Show("Please set a Capture Output Directory before applying.",
+                "Missing Output Directory", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        Environment.SetEnvironmentVariable(EnvTrigger, TriggerKey,    EnvironmentVariableTarget.User);
+        Environment.SetEnvironmentVariable(EnvFileDir, CaptureOutputDir, EnvironmentVariableTarget.User);
+        _log.Log($"Env vars written: {EnvTrigger}={TriggerKey}  {EnvFileDir}={CaptureOutputDir}");
+
+        RefreshEnvStatus();
+
+        MessageBox.Show(
+            $"GFXR environment variables saved:\n\n" +
+            $"  {EnvTrigger} = {TriggerKey}\n" +
+            $"  {EnvFileDir} = {CaptureOutputDir}\n\n" +
+            "A system restart is required for games launched via Steam or Epic\n" +
+            "to inherit these settings.\n\n" +
+            "After restarting, launch the game — GFXR will wait for the\n" +
+            $"{TriggerKey} key before capturing. Use the overlay button or\n" +
+            "press the key in-game to start and stop.",
+            "Restart Required", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
 
     [RelayCommand]
     private void SelectCaptureOutputDir()
@@ -109,15 +180,24 @@ public partial class MainViewModel : ObservableObject
     {
         Dlls.CollectionChanged += (_, _) => LaunchCaptureCommand.NotifyCanExecuteChanged();
         LoadDefaultDlls();
+        RefreshEnvStatus();
     }
 
     private void LoadDefaultDlls()
     {
-        // Set default capture output dir
-        var defaultCaptureDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default_gfxr_location");
-        Directory.CreateDirectory(defaultCaptureDir);
-        CaptureOutputDir = defaultCaptureDir;
-        _log.Log($"Default capture dir: {defaultCaptureDir}");
+        // Pre-populate output dir from env var if already configured, else use default.
+        var liveDir = Environment.GetEnvironmentVariable(EnvFileDir, EnvironmentVariableTarget.User);
+        if (!string.IsNullOrWhiteSpace(liveDir))
+        {
+            CaptureOutputDir = liveDir;
+        }
+        else
+        {
+            var defaultCaptureDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default_gfxr_location");
+            Directory.CreateDirectory(defaultCaptureDir);
+            CaptureOutputDir = defaultCaptureDir;
+        }
+        _log.Log($"Capture dir: {CaptureOutputDir}");
 
         var layersDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Layers");
 
@@ -401,7 +481,7 @@ public partial class MainViewModel : ObservableObject
                     break;
             }
 
-            if (process != null && ShowOverlay)
+            if (process != null && UseTrigger)
                 SpawnOverlay(game.Name, process, TriggerKey);
         }
         catch (Exception ex)

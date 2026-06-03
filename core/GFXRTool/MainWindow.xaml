@@ -269,9 +269,31 @@
                                         Padding="8,4"/>
                             </Grid>
 
-                            <!-- Trigger key + overlay checkbox -->
-                            <StackPanel Orientation="Horizontal"
-                                        Margin="0,10,0,0">
+                            <!-- Set GFXR Trigger section -->
+                            <Separator Margin="0,12,0,10" Background="{StaticResource BorderBrush}"/>
+
+                            <TextBlock Text="GFXR Trigger"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DimTextBrush}"
+                                       Margin="0,0,0,8"/>
+
+                            <!-- Env var status pill -->
+                            <Border CornerRadius="3" Padding="8,4" Margin="0,0,0,8"
+                                    HorizontalAlignment="Left">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#1E1E1E"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Setter Property="BorderBrush" Value="{Binding EnvStatusColor}"/>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding EnvStatusText}"
+                                           Foreground="{Binding EnvStatusColor}"
+                                           FontSize="10" TextWrapping="Wrap" MaxWidth="280"/>
+                            </Border>
+
+                            <!-- Trigger key + Use Trigger checkbox -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="Trigger key:"
                                            FontSize="11" Foreground="{StaticResource DimTextBrush}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -279,12 +301,20 @@
                                           SelectedItem="{Binding TriggerKey}"
                                           Width="72"/>
                                 <CheckBox Content="Show overlay"
-                                          IsChecked="{Binding ShowOverlay}"
+                                          IsChecked="{Binding UseTrigger}"
                                           VerticalAlignment="Center"
                                           Margin="16,0,0,0"
                                           FontSize="11"
-                                          ToolTip="Show a floating capture status/trigger overlay while the game is running"/>
+                                          ToolTip="Show the trigger overlay while the game runs"/>
                             </StackPanel>
+
+                            <!-- Apply button -->
+                            <Button Content="Apply Trigger Settings"
+                                    Style="{StaticResource SecondaryBtn}"
+                                    Command="{Binding ApplyGfxrEnvVarsCommand}"
+                                    HorizontalAlignment="Left"
+                                    Padding="10,5"
+                                    ToolTip="Saves GFXRECON_CAPTURE_TRIGGER and GFXRECON_CAPTURE_FILE_DIR as User environment variables. A system restart is required for the settings to take effect."/>
 
                         </StackPanel>
                     </GroupBox>
