@@ -153,9 +153,6 @@ public class GameDiscoveryService
                         dirLower.Contains(@"\win64\");
         if (inBinDir) return 40;
 
-        // ── Root of install directory ─────────────────────────────────────────
-        var installRoot = Path.GetDirectoryName(path)?.ToLowerInvariant() ?? "";
-        // If the exe's parent IS the install root it gets a small bump
         return 10;
     }
 
