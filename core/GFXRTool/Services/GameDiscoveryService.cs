@@ -121,17 +121,16 @@ public class GameDiscoveryService
 
         // Score each candidate — higher wins.
         return candidates
-            .Select(e => (Path = e, Score: ScoreExe(e, gameName)))
+            .Select(e => (ExePath: e, Score: ScoreExe(e, gameName)))
             .OrderByDescending(x => x.Score)
-            // Tiebreak: largest file (more code = more likely the real game)
-            .ThenByDescending(x => new FileInfo(x.Path).Length)
-            .First().Path;
+            .ThenByDescending(x => new FileInfo(x.ExePath).Length)
+            .First().ExePath;
     }
 
-    private static int ScoreExe(string path, string gameName)
+    private static int ScoreExe(string exePath, string gameName)
     {
-        var name    = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
-        var dirLower = path.ToLowerInvariant();
+        var name     = System.IO.Path.GetFileNameWithoutExtension(exePath).ToLowerInvariant();
+        var dirLower = exePath.ToLowerInvariant();
 
         // ── Unreal Engine: *Shipping* in Binaries/Win64 or Binaries/Win32 ────
         // These are always the real game process — prioritise absolutely.
