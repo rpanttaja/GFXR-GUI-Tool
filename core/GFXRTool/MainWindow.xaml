@@ -308,13 +308,21 @@
                                           ToolTip="Show the trigger overlay while the game runs"/>
                             </StackPanel>
 
-                            <!-- Apply button -->
-                            <Button Content="Apply Trigger Settings"
-                                    Style="{StaticResource SecondaryBtn}"
-                                    Command="{Binding ApplyGfxrEnvVarsCommand}"
-                                    HorizontalAlignment="Left"
-                                    Padding="10,5"
-                                    ToolTip="Saves GFXRECON_CAPTURE_TRIGGER and GFXRECON_CAPTURE_FILE_DIR as User environment variables. A system restart is required for the settings to take effect."/>
+                            <!-- Apply + Clear buttons -->
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Apply Trigger Settings"
+                                        Style="{StaticResource SecondaryBtn}"
+                                        Command="{Binding ApplyGfxrEnvVarsCommand}"
+                                        Padding="10,5"
+                                        ToolTip="Saves GFXRECON_CAPTURE_TRIGGER and GFXRECON_CAPTURE_FILE as User environment variables. A system restart is required."/>
+                                <Button Content="Clear Trigger"
+                                        Style="{StaticResource SecondaryBtn}"
+                                        Command="{Binding ClearGfxrEnvVarsCommand}"
+                                        Margin="6,0,0,0"
+                                        Padding="10,5"
+                                        Foreground="#F44747"
+                                        ToolTip="Removes GFXRECON_CAPTURE_TRIGGER and GFXRECON_CAPTURE_FILE. After a restart GFXR captures all frames from launch."/>
+                            </StackPanel>
 
                         </StackPanel>
                     </GroupBox>

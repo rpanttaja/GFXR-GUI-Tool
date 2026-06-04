@@ -122,6 +122,23 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void ClearGfxrEnvVars()
+    {
+        Environment.SetEnvironmentVariable(EnvTrigger, null, EnvironmentVariableTarget.User);
+        Environment.SetEnvironmentVariable(EnvCapFile,  null, EnvironmentVariableTarget.User);
+        _log.Log("Env vars cleared: GFXRECON_CAPTURE_TRIGGER, GFXRECON_CAPTURE_FILE");
+
+        RefreshEnvStatus();
+
+        MessageBox.Show(
+            "GFXR trigger environment variables have been removed.\n\n" +
+            "A system restart is required for games launched via Steam or Epic\n" +
+            "to lose the old values. After restarting, GFXR will capture all\n" +
+            "frames from the moment the game launches.",
+            "Restart Required", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    [RelayCommand]
     private void ApplyGfxrEnvVars()
     {
         if (string.IsNullOrWhiteSpace(CaptureOutputDir))
