@@ -109,8 +109,7 @@ public class GameLauncherService
 
         var settings = new Dictionary<string, object>
         {
-            ["capture_file"]     = System.IO.Path.Combine(outDir, "gfxrecon_capture.gfxr"),
-            ["capture_file_dir"] = outDir,
+            ["capture_file"] = System.IO.Path.Combine(outDir, "gfxrecon_capture.gfxr"),
         };
 
         if (deferCapture)

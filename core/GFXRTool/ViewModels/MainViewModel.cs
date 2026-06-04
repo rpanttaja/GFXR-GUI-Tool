@@ -65,19 +65,20 @@ public partial class MainViewModel : ObservableObject
 
     // ── Capture settings ──────────────────────────────────────────────────────
 
-    private const string EnvTrigger = "GFXRECON_CAPTURE_TRIGGER";
-    private const string EnvFileDir = "GFXRECON_CAPTURE_FILE_DIR";
+    private const string EnvTrigger  = "GFXRECON_CAPTURE_TRIGGER";
+    private const string EnvCapFile  = "GFXRECON_CAPTURE_FILE";  // full path to .gfxr output file
 
     [ObservableProperty]
     private string _captureOutputDir = string.Empty;
 
     partial void OnCaptureOutputDirChanged(string value)
     {
-        var live = Environment.GetEnvironmentVariable(EnvFileDir, EnvironmentVariableTarget.User);
-        if (!string.IsNullOrEmpty(live) &&
-            !string.Equals(live, value, StringComparison.OrdinalIgnoreCase))
+        var live = Environment.GetEnvironmentVariable(EnvCapFile, EnvironmentVariableTarget.User);
+        if (!string.IsNullOrEmpty(live))
         {
-            SetStatus("Output directory changed — click Apply and restart for the new location to take effect.");
+            var liveDir = Path.GetDirectoryName(live) ?? string.Empty;
+            if (!string.Equals(liveDir, value, StringComparison.OrdinalIgnoreCase))
+                SetStatus("Output directory changed — click Apply and restart for the new location to take effect.");
         }
     }
 
@@ -97,18 +98,18 @@ public partial class MainViewModel : ObservableObject
 
     private void RefreshEnvStatus()
     {
-        var trigger = Environment.GetEnvironmentVariable(EnvTrigger, EnvironmentVariableTarget.User);
-        var fileDir = Environment.GetEnvironmentVariable(EnvFileDir, EnvironmentVariableTarget.User);
+        var trigger = Environment.GetEnvironmentVariable(EnvTrigger,  EnvironmentVariableTarget.User);
+        var capFile = Environment.GetEnvironmentVariable(EnvCapFile,  EnvironmentVariableTarget.User);
 
-        if (!string.IsNullOrEmpty(trigger) && !string.IsNullOrEmpty(fileDir))
+        if (!string.IsNullOrEmpty(trigger) && !string.IsNullOrEmpty(capFile))
         {
-            EnvStatusText  = $"Ready — trigger: {trigger}  |  output: {fileDir}";
+            EnvStatusText  = $"Ready — trigger: {trigger}  |  output: {capFile}";
             EnvStatusColor = "#4EC9B0";
             EnvIsReady     = true;
         }
         else if (!string.IsNullOrEmpty(trigger))
         {
-            EnvStatusText  = $"Trigger key set ({trigger}) but output directory is not configured";
+            EnvStatusText  = $"Trigger key set ({trigger}) but capture file path is not configured";
             EnvStatusColor = "#CE9178";
             EnvIsReady     = false;
         }
@@ -130,21 +131,24 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        Environment.SetEnvironmentVariable(EnvTrigger, TriggerKey,    EnvironmentVariableTarget.User);
-        Environment.SetEnvironmentVariable(EnvFileDir, CaptureOutputDir, EnvironmentVariableTarget.User);
-        _log.Log($"Env vars written: {EnvTrigger}={TriggerKey}  {EnvFileDir}={CaptureOutputDir}");
+        Directory.CreateDirectory(CaptureOutputDir);
+        var capFile = Path.Combine(CaptureOutputDir, "gfxrecon_capture.gfxr");
+
+        Environment.SetEnvironmentVariable(EnvTrigger, TriggerKey, EnvironmentVariableTarget.User);
+        Environment.SetEnvironmentVariable(EnvCapFile,  capFile,   EnvironmentVariableTarget.User);
+        _log.Log($"Env vars written: {EnvTrigger}={TriggerKey}  {EnvCapFile}={capFile}");
 
         RefreshEnvStatus();
 
         MessageBox.Show(
             $"GFXR environment variables saved:\n\n" +
             $"  {EnvTrigger} = {TriggerKey}\n" +
-            $"  {EnvFileDir} = {CaptureOutputDir}\n\n" +
+            $"  {EnvCapFile} = {capFile}\n\n" +
             "A system restart is required for games launched via Steam or Epic\n" +
             "to inherit these settings.\n\n" +
             "After restarting, launch the game — GFXR will wait for the\n" +
-            $"{TriggerKey} key before capturing. Use the overlay button or\n" +
-            "press the key in-game to start and stop.",
+            $"{TriggerKey} key before capturing. Press it in-game (or use\n" +
+            "the overlay button) to start and stop the capture.",
             "Restart Required", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
@@ -186,10 +190,10 @@ public partial class MainViewModel : ObservableObject
     private void LoadDefaultDlls()
     {
         // Pre-populate output dir from env var if already configured, else use default.
-        var liveDir = Environment.GetEnvironmentVariable(EnvFileDir, EnvironmentVariableTarget.User);
-        if (!string.IsNullOrWhiteSpace(liveDir))
+        var liveCapFile = Environment.GetEnvironmentVariable(EnvCapFile, EnvironmentVariableTarget.User);
+        if (!string.IsNullOrWhiteSpace(liveCapFile))
         {
-            CaptureOutputDir = liveDir;
+            CaptureOutputDir = Path.GetDirectoryName(liveCapFile) ?? string.Empty;
         }
         else
         {
