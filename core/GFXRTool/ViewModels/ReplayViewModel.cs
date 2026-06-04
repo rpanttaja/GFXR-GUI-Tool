@@ -1,7 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Diagnostics;
-using System.Windows;
 
 namespace GFXRTool.ViewModels;
 
@@ -11,8 +10,7 @@ public partial class ReplayViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(StartReplayCommand))]
     private string _captureFilePath = string.Empty;
 
-    [ObservableProperty]
-    private string _replayExePath = string.Empty;
+    private readonly string _replayExePath;
 
     [ObservableProperty]
     private string _statusMessage = "Select a .gfxr capture file and click Start Replay.";
@@ -35,11 +33,11 @@ public partial class ReplayViewModel : ObservableObject
             Path.Combine(baseDir, "Replay", "gfxrecon-replay.exe"),
             Path.Combine(baseDir, "..", "Replay", "gfxrecon-replay.exe"),
             Path.Combine(baseDir, "..", "..", "..", "Replay", "gfxrecon-replay.exe"),
+            Path.Combine(baseDir, "..", "..", "..", "..", "Replay", "gfxrecon-replay.exe"),
         };
 
-        var found = candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists);
-        if (found != null)
-            ReplayExePath = found;
+        _replayExePath = candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists)
+            ?? string.Empty;
     }
 
     [RelayCommand]
@@ -54,24 +52,12 @@ public partial class ReplayViewModel : ObservableObject
             CaptureFilePath = dlg.FileName;
     }
 
-    [RelayCommand]
-    private void BrowseReplayExe()
-    {
-        var dlg = new Microsoft.Win32.OpenFileDialog
-        {
-            Title  = "Locate gfxrecon-replay.exe",
-            Filter = "Executable Files (*.exe)|*.exe"
-        };
-        if (dlg.ShowDialog() == true)
-            ReplayExePath = dlg.FileName;
-    }
-
     [RelayCommand(CanExecute = nameof(CanReplay))]
     private async Task StartReplayAsync()
     {
-        if (!File.Exists(ReplayExePath))
+        if (!File.Exists(_replayExePath))
         {
-            StatusMessage = "gfxrecon-replay.exe not found — use Browse to locate it.";
+            StatusMessage = "gfxrecon-replay.exe not found — ensure the Replay folder is next to the tool.";
             return;
         }
 
@@ -86,9 +72,9 @@ public partial class ReplayViewModel : ObservableObject
 
             var psi = new ProcessStartInfo
             {
-                FileName         = ReplayExePath,
+                FileName         = _replayExePath,
                 Arguments        = args,
-                WorkingDirectory = Path.GetDirectoryName(ReplayExePath),
+                WorkingDirectory = Path.GetDirectoryName(_replayExePath),
                 UseShellExecute  = false,
             };
 
