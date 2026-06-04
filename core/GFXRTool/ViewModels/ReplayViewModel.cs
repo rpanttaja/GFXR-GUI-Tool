@@ -25,10 +25,11 @@ public partial class ReplayViewModel : ObservableObject
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
-        // Check next to the running exe first, then the sibling Replay\ folder
-        // (repo layout: core/GFXRTool/bin/... -> core/Replay/gfxrecon-replay.exe)
+        // Prefer the full GFXReconstruct release directory (ships with all required DLLs).
+        // Standalone Replay\ copies lack DLLs and fail with STATUS_DLL_NOT_FOUND (0xC0000135).
         var candidates = new[]
         {
+            Path.Combine(baseDir, "..", "..", "..", "..", "..", "GFXReconstruct_Windows_arm64_Release", "tools", "windows", "arm64", "gfxrecon-replay.exe"),
             Path.Combine(baseDir, "gfxrecon-replay.exe"),
             Path.Combine(baseDir, "Replay", "gfxrecon-replay.exe"),
             Path.Combine(baseDir, "..", "Replay", "gfxrecon-replay.exe"),
