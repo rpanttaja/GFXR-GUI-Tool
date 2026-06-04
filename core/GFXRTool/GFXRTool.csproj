@@ -37,4 +37,12 @@
     </Content>
   </ItemGroup>
 
+  <!-- Copy gfxrecon-replay.exe into a Replay\ subfolder of the output -->
+  <ItemGroup>
+    <Content Include="..\Replay\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Replay\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
 </Project>
