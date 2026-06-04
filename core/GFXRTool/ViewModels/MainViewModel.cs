@@ -208,7 +208,7 @@ public partial class MainViewModel : ObservableObject
         }
         else
         {
-            var defaultCaptureDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default_gfxr_location");
+            var defaultCaptureDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "gfxr_captures"));
             Directory.CreateDirectory(defaultCaptureDir);
             CaptureOutputDir = defaultCaptureDir;
         }
