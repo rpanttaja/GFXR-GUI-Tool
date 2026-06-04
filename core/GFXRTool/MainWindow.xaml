@@ -179,7 +179,7 @@
                                                  GroupName="LaunchMethod"
                                                  FontWeight="SemiBold" FontSize="12"
                                                  Foreground="#F4A460"/>
-                                    <TextBlock Text="Replaces d3d11.dll, d3d12.dll and dxgi.dll in System32. Use when Standard Deployment fails."
+                                    <TextBlock Text="Replaces d3d11.dll, d3d12.dll and dxgi.dll in System32, then launches via Steam/Epic so BattleEye sees a trusted process. Use for BattleEye games when other modes fail."
                                                Foreground="{StaticResource DimTextBrush}"
                                                FontSize="11" TextWrapping="Wrap"
                                                Margin="18,4,0,0"/>

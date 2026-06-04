@@ -541,15 +541,36 @@ public partial class MainViewModel : ObservableObject
             RefreshSystem32Status();
         }
 
-        var psi = new System.Diagnostics.ProcessStartInfo
-        {
-            FileName         = game.ExecutablePath,
-            WorkingDirectory = Path.GetDirectoryName(game.ExecutablePath),
-            UseShellExecute  = true
-        };
+        System.Diagnostics.Process process;
 
-        var process = System.Diagnostics.Process.Start(psi)
-            ?? throw new InvalidOperationException("Failed to start game process.");
+        if (!string.IsNullOrEmpty(game.LauncherId))
+        {
+            // BattleEye / EAC require the process to be spawned by the official launcher.
+            // Fire the Steam/Epic URL so the trust chain is intact, then poll for the process.
+            var protocolUrl = GameLauncherService.BuildProtocolUrl(game);
+            SetStatus($"Firing launcher: {protocolUrl}");
+            _log.Log($"  System32 mode: firing launcher URL {protocolUrl}");
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(protocolUrl) { UseShellExecute = true });
+
+            var gameDir      = Path.GetDirectoryName(game.ExecutablePath)!;
+            var launcherName = Path.GetFileNameWithoutExtension(game.ExecutablePath);
+            SetStatus("Waiting for game process...");
+            process = await GameLauncherService.WaitForGameProcessInDirAsync(
+                gameDir, launcherName, timeoutMs: 120_000,
+                CancellationToken.None, new Progress<string>(SetStatus));
+        }
+        else
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName         = game.ExecutablePath,
+                WorkingDirectory = Path.GetDirectoryName(game.ExecutablePath),
+                UseShellExecute  = true
+            };
+            process = System.Diagnostics.Process.Start(psi)
+                ?? throw new InvalidOperationException("Failed to start game process.");
+        }
 
         _log.Log($"  PID {process.Id} started in System32 mode");
         SetStatus($"{game.Name} launched in System32 mode — originals will auto-restore on exit.");

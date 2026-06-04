@@ -129,7 +129,7 @@ public class GameLauncherService
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static string BuildProtocolUrl(Game game) =>
+    internal static string BuildProtocolUrl(Game game) =>
         game.Source switch
         {
             "Steam" => $"steam://rungameid/{game.LauncherId}",
@@ -138,7 +138,7 @@ public class GameLauncherService
                             $"No protocol URL known for source '{game.Source}'.")
         };
 
-    private static async Task<Process> WaitForGameProcessInDirAsync(
+    internal static async Task<Process> WaitForGameProcessInDirAsync(
         string gameDir, string launcherExeName,
         int timeoutMs, CancellationToken ct,
         IProgress<string>? progress = null)
