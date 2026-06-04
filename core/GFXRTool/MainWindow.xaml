@@ -26,7 +26,7 @@
                 <TextBlock Text="GFXR Capture Tool"
                            FontSize="15" FontWeight="SemiBold"
                            Foreground="White" VerticalAlignment="Center"/>
-                <TextBlock Text="Graphics Frame Recorder  |  Standard · Injection · System32"
+                <TextBlock Text="Graphics Frame Recorder  |  Standard · System32"
                            FontSize="11" Foreground="#B3DEFF"
                            HorizontalAlignment="Right" VerticalAlignment="Center"/>
             </Grid>
@@ -127,32 +127,6 @@
                                                  GroupName="LaunchMethod"
                                                  FontWeight="SemiBold" FontSize="12"/>
                                     <TextBlock Text="Copies GFXR layers into the game folder before launch and removes them automatically when the game exits. No system files are modified."
-                                               Foreground="{StaticResource DimTextBrush}"
-                                               FontSize="11" TextWrapping="Wrap"
-                                               Margin="18,4,0,0"/>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Injection -->
-                            <Border BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Background" Value="#1E1E1E"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding UseInjection}" Value="True">
-                                                <Setter Property="Background" Value="#0F1A28"/>
-                                                <Setter Property="BorderBrush" Value="#2E7D32"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <StackPanel>
-                                    <RadioButton Content="Injection"
-                                                 IsChecked="{Binding UseInjection}"
-                                                 GroupName="LaunchMethod"
-                                                 FontWeight="SemiBold" FontSize="12"/>
-                                    <TextBlock Text="Stages GFXR layers in the game folder, then launches the game through Steam or Epic so EAC / BattlEye sees an officially-trusted process. Layers are removed automatically on exit. Requires a Steam or Epic AppId."
                                                Foreground="{StaticResource DimTextBrush}"
                                                FontSize="11" TextWrapping="Wrap"
                                                Margin="18,4,0,0"/>

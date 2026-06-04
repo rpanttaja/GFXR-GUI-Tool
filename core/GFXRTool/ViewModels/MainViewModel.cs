@@ -7,7 +7,7 @@ using System.Windows;
 
 namespace GFXRTool.ViewModels;
 
-public enum LaunchMode { Standard, Injection, System32 }
+public enum LaunchMode { Standard, System32 }
 
 public partial class MainViewModel : ObservableObject
 {
@@ -28,7 +28,6 @@ public partial class MainViewModel : ObservableObject
     partial void OnLaunchModeChanged(LaunchMode value)
     {
         OnPropertyChanged(nameof(UseStandard));
-        OnPropertyChanged(nameof(UseInjection));
         OnPropertyChanged(nameof(UseSystem32));
         if (value == LaunchMode.System32) RefreshSystem32Status();
     }
@@ -37,11 +36,6 @@ public partial class MainViewModel : ObservableObject
     {
         get => LaunchMode == LaunchMode.Standard;
         set { if (value) LaunchMode = LaunchMode.Standard; }
-    }
-    public bool UseInjection
-    {
-        get => LaunchMode == LaunchMode.Injection;
-        set { if (value) LaunchMode = LaunchMode.Injection; }
     }
     public bool UseSystem32
     {
@@ -446,54 +440,6 @@ public partial class MainViewModel : ObservableObject
                         StagedInDir   = null;
                         RemoveStagedDllsCommand.NotifyCanExecuteChanged();
                     });
-                    break;
-                }
-
-                case LaunchMode.Injection:
-                {
-                    if (string.IsNullOrEmpty(game.LauncherId))
-                    {
-                        _log.Log("  No LauncherId — falling back to Standard");
-                        SetStatus("No launcher ID — falling back to Standard deployment.");
-                        var deployDir2 = Path.GetDirectoryName(game.ExecutablePath)!;
-                        var (fbProc, fbCopied) = await _launcher.LaunchWithSideloadAsync(
-                            game, dlls, CaptureOutputDir, deferCapture: true, TriggerKey);
-                        _log.Log($"  PID {fbProc.Id} started (fallback)");
-                        SetStatus($"{game.Name} launched (Standard fallback) — {fbCopied.Count} DLL(s) deployed.");
-                        process = fbProc;
-                        _activeCopied = fbCopied;
-                        StagedInDir   = deployDir2;
-                        RemoveStagedDllsCommand.NotifyCanExecuteChanged();
-                        MonitorGame(fbProc, () =>
-                        {
-                            CleanupDlls(fbCopied);
-                            _activeCopied = null;
-                            StagedInDir   = null;
-                            RemoveStagedDllsCommand.NotifyCanExecuteChanged();
-                        });
-                    }
-                    else
-                    {
-                        var injDir = Path.GetDirectoryName(game.ExecutablePath)!;
-                        var (injProc, injCopied) = await _launcher.LaunchViaLauncherAsync(
-                            game, dlls, CaptureOutputDir, deferCapture: true, TriggerKey,
-                            new Progress<string>(SetStatus));
-                        _log.Log($"  PID {injProc.Id} attached via launcher");
-                        foreach (var (dest, bak) in injCopied)
-                            _log.Log($"  staged: {dest}  backup={bak ?? "none"}");
-                        SetStatus($"{game.Name} launched via {game.Source} launcher.");
-                        process = injProc;
-                        _activeCopied = injCopied;
-                        StagedInDir   = injDir;
-                        RemoveStagedDllsCommand.NotifyCanExecuteChanged();
-                        MonitorGame(injProc, () =>
-                        {
-                            CleanupDlls(injCopied);
-                            _activeCopied = null;
-                            StagedInDir   = null;
-                            RemoveStagedDllsCommand.NotifyCanExecuteChanged();
-                        });
-                    }
                     break;
                 }
 

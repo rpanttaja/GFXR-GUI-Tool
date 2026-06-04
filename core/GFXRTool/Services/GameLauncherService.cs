@@ -36,65 +36,6 @@ public class GameLauncherService
         return (process, copied);
     }
 
-    public async Task<(Process Process, IReadOnlyList<(string Dest, string? Backup)> CopiedPaths)>
-        LaunchViaLauncherAsync(Game game, IReadOnlyList<GfxrDll> dlls,
-                               string? captureOutputDir = null, bool deferCapture = false,
-                               string triggerKey = "F12",
-                               IProgress<string>? progress = null,
-                               CancellationToken ct = default)
-    {
-        if (dlls.Count == 0) throw new InvalidOperationException("No DLLs to sideload.");
-        if (string.IsNullOrEmpty(game.LauncherId))
-            throw new InvalidOperationException(
-                $"'{game.Name}' has no launcher ID — use Standard deployment instead.");
-
-        var gameDir         = Path.GetFullPath(Path.GetDirectoryName(game.ExecutablePath)!);
-        var launcherExeName = Path.GetFileNameWithoutExtension(game.ExecutablePath);
-
-        progress?.Report($"Staging {dlls.Count} layer(s) into {gameDir}...");
-        var copied = new List<(string Dest, string? Backup)>(await StageDllsAsync(gameDir, dlls));
-        WriteSettingsFile(gameDir, captureOutputDir, deferCapture, triggerKey);
-        copied.Add((Path.Combine(gameDir, SettingsFileName), null));
-
-        try
-        {
-            var protocolUrl = BuildProtocolUrl(game);
-            progress?.Report($"Firing launcher: {protocolUrl}");
-            Process.Start(new ProcessStartInfo(protocolUrl) { UseShellExecute = true });
-
-            progress?.Report("Waiting for game process...");
-            var gameProcess = await WaitForGameProcessInDirAsync(
-                gameDir, launcherExeName, timeoutMs: 120_000, ct, progress);
-
-            // Check if the actual game exe lives in a subdirectory (e.g. Squad.exe in
-            // Squad\Binaries\Win64\). Windows DLL search order starts in the exe's own
-            // directory, so we need the GFXR DLLs and settings file there too.
-            try
-            {
-                var actualExeDir = Path.GetFullPath(
-                    Path.GetDirectoryName(gameProcess.MainModule!.FileName)!);
-
-                if (!actualExeDir.Equals(gameDir, StringComparison.OrdinalIgnoreCase))
-                {
-                    progress?.Report($"Game exe is in subdirectory — re-staging to: {actualExeDir}");
-                    var extraCopied = await StageDllsAsync(actualExeDir, dlls);
-                    copied.AddRange(extraCopied);
-                    WriteSettingsFile(actualExeDir, captureOutputDir, deferCapture, triggerKey);
-                    copied.Add((Path.Combine(actualExeDir, SettingsFileName), null));
-                }
-            }
-            catch { /* protected process — gameDir staging is still in place */ }
-
-            progress?.Report($"Attached to {gameProcess.ProcessName} (PID {gameProcess.Id}).");
-            return (gameProcess, copied);
-        }
-        catch
-        {
-            CleanupStagedDlls(copied);
-            throw;
-        }
-    }
-
     // ── Settings file ─────────────────────────────────────────────────────────
     // GFXR layers read gfxrecon_settings.json from the working directory at load
     // time. This is the only reliable way to pass config when the game is spawned
