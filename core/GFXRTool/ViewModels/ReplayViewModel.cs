@@ -25,16 +25,15 @@ public partial class ReplayViewModel : ObservableObject
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
-        // Prefer the full GFXReconstruct release directory (ships with all required DLLs).
-        // Standalone Replay\ copies lack DLLs and fail with STATUS_DLL_NOT_FOUND (0xC0000135).
+        // Replay\ subfolder is copied from core/Replay on build and contains the exe plus
+        // all required DLLs (dxcompiler.dll, D3D12\) for the x64 release.
         var candidates = new[]
         {
-            Path.Combine(baseDir, "..", "..", "..", "..", "..", "GFXReconstruct_Windows_arm64_Release", "tools", "windows", "arm64", "gfxrecon-replay.exe"),
-            Path.Combine(baseDir, "gfxrecon-replay.exe"),
             Path.Combine(baseDir, "Replay", "gfxrecon-replay.exe"),
+            Path.Combine(baseDir, "gfxrecon-replay.exe"),
             Path.Combine(baseDir, "..", "Replay", "gfxrecon-replay.exe"),
             Path.Combine(baseDir, "..", "..", "..", "Replay", "gfxrecon-replay.exe"),
-            Path.Combine(baseDir, "..", "..", "..", "..", "Replay", "gfxrecon-replay.exe"),
+            Path.Combine(baseDir, "..", "..", "..", "..", "..", "GFXReconstruct_Windows_x64_Release", "tools", "windows", "x64", "gfxrecon-replay.exe"),
         };
 
         _replayExePath = candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists)
@@ -58,7 +57,7 @@ public partial class ReplayViewModel : ObservableObject
     {
         if (!File.Exists(_replayExePath))
         {
-            StatusMessage = "gfxrecon-replay.exe not found — ensure the Replay folder is next to the tool.";
+            StatusMessage = "gfxrecon-replay.exe not found — ensure the Replay folder is next to the tool (built automatically on build).";
             return;
         }
 
